@@ -1,0 +1,10 @@
+Flask==2.3
+pandas
+numpy
+flask-caching
+psycopg2-binary
+SQLAlchemy
+Flask-SQLAlchemy
+Flask-Migrate
+python-dotenv
+jsonschema

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Panel List - Test Analytics{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>Available Panels</h1>
+        {% if panels %}
+            <div class="list-group">
+                {% for panel in panels %}
+                    <a href="#" class="list-group-item list-group-item-action">
+                        {{ panel.panel_type }}
+                        <!-- Placeholder for future KPI/sparkline -->
+                        <small class="float-right text-muted">Details ></small>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info" role="alert">
+                No panels found. Upload test results to see panels here.
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

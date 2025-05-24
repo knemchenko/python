@@ -1,0 +1,21 @@
+[Unit]
+Description=Aqua Tests Analytics Service
+After=network.target postgresql.service # Assuming PostgreSQL is managed by systemd or starts before
+
+[Service]
+User=aquauser                 # Replace with the actual user the app should run as
+Group=aquagroup               # Replace with the actual group
+WorkingDirectory=/opt/aqua-tests  # Or the cloned project directory
+EnvironmentFile=/opt/aqua-tests/.env # Path to the .env file
+# Ensure variables from .env are available, especially DATABASE_URL, UPLOAD_FOLDER, FLASK_ENV=production
+
+ExecStart=/opt/aqua-tests/venv/bin/gunicorn --workers 3 --bind unix:/opt/aqua-tests/aqua-tests.sock -m 007 wsgi:app
+# Alternative: --bind 0.0.0.0:8000 if not using a Unix socket with nginx
+
+Restart=always
+StandardOutput=append:/var/log/aqua-tests/app.log
+StandardError=append:/var/log/aqua-tests/app.error.log
+SyslogIdentifier=aqua-tests
+
+[Install]
+WantedBy=multi-user.target

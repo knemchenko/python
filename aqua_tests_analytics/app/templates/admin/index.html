@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard - Test Analytics{% endblock %}
+{% block content %}
+<h1>Admin Dashboard</h1>
+<h2>Panels and Versions</h2>
+{% if panels_with_versions %}
+    {% for panel in panels_with_versions %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h4>Panel: {{ panel.panel_type }}</h4>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% if panel.versions %}
+                    {% for ver in panel.versions|sort(attribute='version', reverse=True) %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Version: {{ ver.version }} (Uploaded: {{ ver.created_ts.strftime('%Y-%m-%d %H:%M:%S') if ver.created_ts else 'N/A' }})
+                            <!-- <button class="btn btn-sm btn-danger" disabled>Delete Version</button> -->
+                        </li>
+                    {% else %}
+                        <li class="list-group-item">No versions for this panel.</li>
+                    {% endfor %}
+                {% else %}
+                    <li class="list-group-item">No versions for this panel.</li>
+                {% endif %}
+            </ul>
+        </div>
+    {% endfor %}
+{% else %}
+    <p>No panels found.</p>
+{% endif %}
+{% endblock %}

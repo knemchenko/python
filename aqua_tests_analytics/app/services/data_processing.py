@@ -1,7 +1,9 @@
 import datetime
+import datetime # Already imported
 import pandas as pd
 import numpy as np
 from sqlalchemy.orm import Session
+from flask import current_app # Import current_app for logging
 from app import db
 from app.models import Version, TestRun, TestAgg, TestStatus
 
@@ -95,9 +97,13 @@ def aggregate_test_data(version_id: int):
     """
     Aggregates TestRun data into TestAgg records for a given version_id.
     """
-    version = db.session.get(Version, version_id)
+    # version is the current version object being processed
+    version = db.session.get(Version, version_id) 
     if not version:
-        print(f"Version with id {version_id} not found for aggregation.")
+        # Use current_app.logger if available, or print
+        # from flask import current_app # Add this import at the top if not already there
+        current_app.logger.error(f"Version with id {version_id} not found for aggregation.")
+        # print(f"Version with id {version_id} not found for aggregation.") # Keep print if logger not set up here
         return
 
     # Fetch all TestRuns for the version_id, ordered by test_id and then by started_ts
@@ -111,6 +117,7 @@ def aggregate_test_data(version_id: int):
     # Group runs by test_id using pandas for convenience
     df_runs = pd.DataFrame([{
         'test_id': run.test_id,
+        'class_name': run.class_name, # Add class_name for aggregation
         'status': run.status.value, # Use enum value for comparisons
         'duration_seconds': float(run.duration_seconds) if run.duration_seconds is not None else np.nan,
         'started_ts': run.started_ts
@@ -132,6 +139,8 @@ def aggregate_test_data(version_id: int):
 
         last_status_enum = TestStatus(last_run['status'])
         last_started_ts_val = last_run['started_ts']
+        # Get class_name from the last run (it should be consistent for a given test_id within a version)
+        class_name_val = last_run['class_name'] 
 
         passes = sum(group['status'] == TestStatus.PASS.value)
         fails = sum(group['status'] == TestStatus.FAIL.value)
@@ -146,8 +155,34 @@ def aggregate_test_data(version_id: int):
                 if group['status'].iloc[i] != group['status'].iloc[i-1]:
                     flips += 1
         
-        t1_transition_rate = flips / (num_runs - 1) if num_runs > 1 else 0.0
+        flips_current_version = flips # Renaming for clarity in new logic
+        t1_transition_rate = flips_current_version / (num_runs - 1) if num_runs > 1 else 0.0
 
+        # New T4 Flaky Flag Logic
+        # 'version' is the current Version object, passed or fetched at the start of the function
+        t4_flaky_flag = False
+        if flips_current_version > 0:
+            t4_flaky_flag = True
+        else:
+            # version object should be the one for the current version_id, already fetched
+            if version: # Ensure current version object is available
+                previous_versions = db.session.query(Version).filter(
+                    Version.panel_id == version.panel_id,
+                    Version.created_ts < version.created_ts
+                ).order_by(Version.created_ts.desc()).limit(4).all()
+
+                for prev_ver in previous_versions:
+                    # test_id is the current test_id being processed in the outer loop
+                    prev_agg = db.session.query(TestAgg).filter_by(
+                        version_id=prev_ver.id,
+                        test_id=test_id 
+                    ).first()
+                    if prev_agg and prev_agg.flips > 0:
+                        t4_flaky_flag = True
+                        break
+            else:
+                current_app.logger.warning(f"Current version object not found for version_id {version_id} during T4 calculation for test_id {test_id}.")
+        
         t2_fail_after_pass = 0.0
         first_pass_index = group[group['status'] == TestStatus.PASS.value].index.min() # Pandas index, not iloc index
         
@@ -170,10 +205,10 @@ def aggregate_test_data(version_id: int):
 
         t3_retry_success = None # Placeholder as per requirements
 
-        t4_flaky_flag = flips > 0
+        # t4_flaky_flag is now calculated above
 
         t5_weighted_instab = 0.0
-        if num_runs > 1: # Flips are only possible with more than one run
+        if num_runs > 1: # flips_current_version are only possible with more than one run
             for i in range(1, num_runs): # Iterate from the second run (index 1)
                 if group['status'].iloc[i] != group['status'].iloc[i-1]:
                     t5_weighted_instab += (1 / (i + 1)) # Using (i+1) because question implies 1-based run index (R1, R2, R3 -> indices 0,1,2)
@@ -188,13 +223,14 @@ def aggregate_test_data(version_id: int):
         # Check if TestAgg already exists to update, otherwise create
         test_agg = db.session.query(TestAgg).filter_by(version_id=version_id, test_id=test_id).first()
         if test_agg:
+            test_agg.class_name = class_name_val # Update class_name
             test_agg.last_status = last_status_enum
             test_agg.last_started_ts = last_started_ts_val
             test_agg.passes = passes
             test_agg.fails = fails
             test_agg.ignores = ignores
             test_agg.skips = skips # Will be 0
-            test_agg.flips = flips
+            test_agg.flips = flips_current_version # Store flips from current version
             test_agg.t1_transition_rate = t1_transition_rate
             test_agg.t2_fail_after_pass = t2_fail_after_pass
             test_agg.t3_retry_success = t3_retry_success
@@ -206,13 +242,14 @@ def aggregate_test_data(version_id: int):
             test_agg = TestAgg(
                 version_id=version_id,
                 test_id=test_id,
+                class_name=class_name_val, # Add class_name
                 last_status=last_status_enum,
                 last_started_ts=last_started_ts_val,
                 passes=passes,
                 fails=fails,
                 ignores=ignores,
                 skips=skips, # Will be 0
-                flips=flips,
+                flips=flips_current_version, # Store flips from current version
                 t1_transition_rate=t1_transition_rate,
                 t2_fail_after_pass=t2_fail_after_pass,
                 t3_retry_success=t3_retry_success, # Placeholder

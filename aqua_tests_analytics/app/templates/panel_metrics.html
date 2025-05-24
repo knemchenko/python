@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}{{ panel.panel_type }} Metrics - Test Analytics{% endblock %}
+
+{% block head_extra %}
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        .kpi-box {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            color: white; /* Default text color for KPI boxes */
+            text-align: center;
+        }
+        .kpi-box h4 {
+            margin-bottom: 5px;
+            font-size: 1.2em;
+        }
+        .kpi-box p {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 0;
+        }
+        .kpi-green { background-color: #28a745; } /* Bootstrap success green */
+        .kpi-yellow { background-color: #ffc107; color: #343a40 !important; } /* Bootstrap warning yellow, dark text */
+        .kpi-red { background-color: #dc3545; } /* Bootstrap danger red */
+        .kpi-grey { background-color: #6c757d; } /* Bootstrap secondary grey */
+        
+        /* Ensure Plotly chart background is transparent or matches page for dark mode */
+        .js-plotly-plot .plotly, .js-plotly-plot .plotly-graph-div {
+             background: transparent !important;
+        }
+        /* Dark mode specific styles for Plotly chart text if needed */
+        @media (prefers-color-scheme: dark) {
+            .js-plotly-plot .plotly text, .js-plotly-plot .plotly-graph-div text {
+                fill: var(--text-color-dark) !important; /* Ensure text is visible */
+            }
+            .js-plotly-plot .plotly .xtick text, .js-plotly-plot .plotly .ytick text {
+                fill: var(--text-color-dark) !important; /* Ensure tick text is visible */
+            }
+            .js-plotly-plot .plotly .legendtext {
+                 fill: var(--text-color-dark) !important; /* Ensure legend text is visible */
+            }
+        }
+
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>Metrics for Panel: {{ panel.panel_type }}</h1>
+        {% if latest_version %}
+            <p class="lead">Displaying data for latest version: <strong>{{ latest_version.version }}</strong> (Uploaded: {{ latest_version.created_ts.strftime('%Y-%m-%d %H:%M:%S') if latest_version.created_ts else 'N/A' }})</p>
+        {% else %}
+            <div class="alert alert-warning" role="alert">
+                No versions found for this panel. Upload test data to see metrics.
+            </div>
+            {% return %} {# Exit block if no latest_version #}
+        {% endif %}
+    </div>
+</div>
+
+{% if test_aggregates_count > 0 %}
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="kpi-box kpi-{{ pass_rate_color }}">
+                <h4>Pass Rate</h4>
+                <p>{{ "%.2f"|format(pass_rate) }}%</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="kpi-box kpi-grey">
+                <h4>Total Tests</h4>
+                <p>{{ test_aggregates_count }}</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+             <div class="kpi-box kpi-grey"> <!-- Could be dynamic based on failure count -->
+                <h4>Failed Tests</h4>
+                <p>{{ status_counts.fail }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <h3>Test Status Overview (Latest Version)</h3>
+            <div id="statusBarChart" style="width:100%;height:250px;"></div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <h3>Test Durations (Latest Version)</h3>
+            {% if duration_data %}
+                <table class="table table-striped table-hover">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Test ID</th>
+                            <th>Average Duration (s)</th>
+                            <th>Median Duration (s)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in duration_data %}
+                            <tr>
+                                <td>{{ item.test_id }}</td>
+                                <td>{{ "%.3f"|format(item.avg_duration) if item.avg_duration is not none else 'N/A' }}</td>
+                                <td>{{ "%.3f"|format(item.median_duration) if item.median_duration is not none else 'N/A' }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="alert alert-info" role="alert">
+                    No duration data available for this version.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% else %}
+    <div class="alert alert-info mt-4" role="alert">
+        No aggregated test data found for version {{ latest_version.version }}.
+    </div>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    {% if test_aggregates_count > 0 and status_counts %}
+        var status_data = JSON.parse('{{ status_counts | tojson | safe }}');
+        
+        var trace_pass = { x: [status_data.pass || 0], y: ['Latest Version'], name: 'Pass', type: 'bar', orientation: 'h', marker: {color: '#28a745'} };
+        var trace_fail = { x: [status_data.fail || 0], y: ['Latest Version'], name: 'Fail', type: 'bar', orientation: 'h', marker: {color: '#dc3545'} };
+        var trace_warning = { x: [status_data.warning || 0], y: ['Latest Version'], name: 'Warning', type: 'bar', orientation: 'h', marker: {color: '#ffc107'} };
+        var trace_ignored = { x: [status_data.ignored || 0], y: ['Latest Version'], name: 'Ignored', type: 'bar', orientation: 'h', marker: {color: '#6c757d'} };
+        var trace_skipped = { x: [status_data.skipped || 0], y: ['Latest Version'], name: 'Skipped', type: 'bar', orientation: 'h', marker: {color: '#17a2b8'} }; // Bootstrap info blue for skipped
+
+        var data = [trace_pass, trace_fail, trace_warning, trace_ignored, trace_skipped];
+        
+        var layout = { 
+            barmode: 'stack', 
+            // title: 'Test Status Overview (Latest Version)', // Title is in HTML h3
+            xaxis: { title: 'Count' },
+            yaxis: { showticklabels: false }, // Hide Y-axis label 'Latest Version' as it's implicit
+            legend: { traceorder: 'normal' }, // To show pass, fail, warning, ignored, skipped in order
+            margin: { l: 50, r: 50, b: 50, t: 20, pad: 4 }, // Adjust margins
+            paper_bgcolor: 'rgba(0,0,0,0)', // Transparent background
+            plot_bgcolor: 'rgba(0,0,0,0)'   // Transparent background
+        };
+
+        Plotly.newPlot('statusBarChart', data, layout, {responsive: true});
+    {% endif %}
+});
+</script>
+{% endblock %}

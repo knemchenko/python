@@ -25,6 +25,9 @@ def create_app(config_class=Config):
     from app.routes.main import main_bp
     app.register_blueprint(main_bp)
 
+    from app.routes.admin import admin_bp # Import admin blueprint
+    app.register_blueprint(admin_bp)     # Register admin blueprint
+
     # Configure Caching
     if app.config.get('FLASK_DEBUG'):
         cache_type = 'NullCache'

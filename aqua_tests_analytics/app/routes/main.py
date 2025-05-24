@@ -234,15 +234,140 @@ def health_check():
 @cache.cached() # Uses default timeout configured in app
 def get_panel_metrics(panel_name: str):
     """
-    Placeholder endpoint for panel-specific metrics.
-    This endpoint's response will be cached.
+    Displays metrics for a specific panel, focusing on its latest version.
     """
-    # In a real scenario, you would fetch data from the database
-    # based on panel_name and compute metrics.
-    # For now, just a placeholder.
-    current_app.logger.info(f"Cache miss or first request for /{(panel_name)}/metrics") # Log cache miss
-    return jsonify({
-        "panel_name": panel_name,
-        "message": f"Metrics for panel {panel_name} - this response should be cached.",
-        "data_source": "Simulated data generation"
-    }), 200
+    current_app.logger.info(f"Executing get_panel_metrics for panel: {panel_name}. Cache miss or first request.")
+    panel = Panel.query.filter_by(panel_type=panel_name).first()
+
+    if not panel:
+        return render_template('404.html'), 404 # Or a specific "panel not found" template
+
+    # Get the latest version for this panel (order by created_ts descending)
+    latest_version = Version.query.filter_by(panel_id=panel.id)\
+                                  .order_by(Version.created_ts.desc())\
+                                  .first()
+
+    status_counts = {'pass': 0, 'fail': 0, 'warning': 0, 'ignored': 0, 'skipped': 0}
+    duration_data = []
+    test_aggregates = []
+    pass_rate = 0
+    pass_rate_color = 'grey' # Default color
+
+    if latest_version:
+        test_aggregates = TestAgg.query.filter_by(version_id=latest_version.id).all()
+
+        if test_aggregates:
+            for agg in test_aggregates:
+                # Ensure agg.last_status is not None and has a value attribute if it's an Enum object
+                # If it's already a string from db.Enum, direct use is fine.
+                # Based on model (TestStatus(enum.Enum)), it should be an enum object.
+                if agg.last_status: # Check if not None
+                    status_counts[agg.last_status.value] += 1 
+                
+                duration_data.append({
+                    'test_id': agg.test_id,
+                    'avg_duration': agg.avg_duration,
+                    'median_duration': agg.median_duration
+                })
+            
+            # Calculate pass rate (excluding ignored and skipped from the denominator)
+            total_relevant_tests = sum(status_counts.values()) - status_counts['ignored'] - status_counts['skipped']
+            if total_relevant_tests > 0:
+                pass_rate = (status_counts['pass'] / total_relevant_tests) * 100
+            else: # Avoid division by zero if only ignored/skipped or no tests
+                pass_rate = 0 if sum(status_counts.values()) > 0 else 100 # 100% if no tests at all, 0% if only ignored/skipped
+
+            # Determine pass rate color
+            if pass_rate >= 95:
+                pass_rate_color = 'green'
+            elif pass_rate >= 85:
+                pass_rate_color = 'yellow'
+            else:
+                pass_rate_color = 'red'
+
+    return render_template('panel_metrics.html',
+                           panel=panel,
+                           latest_version=latest_version,
+                           status_counts=status_counts, # Will be converted to JSON in template
+                           duration_data=duration_data,
+                           test_aggregates_count=len(test_aggregates),
+                           pass_rate=pass_rate,
+                           pass_rate_color=pass_rate_color)
+
+
+@main_bp.route('/<string:panel_name>/<string:version_str>', methods=['GET'])
+def version_detail_page(panel_name: str, version_str: str):
+    """
+    Displays details for a specific version of a panel, including all its test aggregates
+    grouped by class_name.
+    """
+    panel = Panel.query.filter_by(panel_type=panel_name).first()
+    if not panel:
+        return render_template('404.html', message=f"Panel '{panel_name}' not found."), 404
+
+    version = Version.query.filter_by(panel_id=panel.id, version=version_str).first()
+    if not version:
+        return render_template('404.html', message=f"Version '{version_str}' for panel '{panel_name}' not found."), 404
+
+    test_aggregates = TestAgg.query.filter_by(version_id=version.id)\
+                                   .order_by(TestAgg.class_name, TestAgg.test_id)\
+                                   .all()
+    
+    grouped_tests = {}
+    if test_aggregates:
+        from itertools import groupby
+        for class_name, group in groupby(test_aggregates, key=lambda x: x.class_name or "Unclassified"):
+            grouped_tests[class_name] = list(group)
+
+    return render_template('version_detail.html',
+                           panel=panel,
+                           version=version,
+                           grouped_tests=grouped_tests,
+                           total_tests=len(test_aggregates))
+
+
+@main_bp.route('/<string:panel_name>/<string:version_str>/<path:test_id_str>', methods=['GET'])
+def test_history_page(panel_name: str, version_str: str, test_id_str: str):
+    """
+    Displays the history of a specific test case within a given version of a panel,
+    including a duration trend chart and paginated test runs.
+    """
+    panel = Panel.query.filter_by(panel_type=panel_name).first()
+    if not panel:
+        return render_template('404.html', message=f"Panel '{panel_name}' not found."), 404
+
+    version = Version.query.filter_by(panel_id=panel.id, version=version_str).first()
+    if not version:
+        return render_template('404.html', message=f"Version '{version_str}' for panel '{panel_name}' not found."), 404
+
+    page = request.args.get('page', 1, type=int)
+    
+    # Query for all runs for the chart data (ordered by time for trend)
+    all_runs_for_test = TestRun.query.filter_by(version_id=version.id, test_id=test_id_str)\
+                                     .order_by(TestRun.started_ts.asc())\
+                                     .all()
+    
+    chart_data = []
+    if all_runs_for_test:
+        chart_data = [{'x': run.started_ts.strftime('%Y-%m-%d %H:%M:%S') if run.started_ts else f"Run_{i+1}", 
+                       'y': float(run.duration_seconds) if run.duration_seconds is not None else 0}
+                      for i, run in enumerate(all_runs_for_test)]
+
+    # Query for paginated runs (ordered by time descending for display)
+    # Note: Using a subquery or a more complex query might be needed if all_runs_for_test is very large
+    # and we want to avoid loading it all into memory just for the chart.
+    # For now, this is simpler.
+    
+    # Re-query for pagination, ordered descending for latest first in table
+    paginated_runs_query = TestRun.query.filter_by(version_id=version.id, test_id=test_id_str)\
+                                     .order_by(TestRun.started_ts.desc())
+    
+    pagination = paginated_runs_query.paginate(page=page, per_page=10, error_out=False)
+    
+    # test_id_str is used as test_id in the template for url_for
+    return render_template('test_history.html',
+                           panel=panel,
+                           version=version,
+                           test_id=test_id_str, 
+                           pagination=pagination,
+                           chart_data_json=json.dumps(chart_data)) # Pass chart data as JSON

@@ -9,6 +9,7 @@ class TestAgg(db.Model):
 
     version_id = Column(Integer, ForeignKey('versions.id'), primary_key=True)
     test_id = Column(String(256), primary_key=True)
+    class_name = Column(String(256), nullable=True) # Added class_name
 
     last_status = Column(Enum(TestStatus), nullable=True)
     last_started_ts = Column(DateTime(timezone=True), nullable=True)
@@ -30,4 +31,4 @@ class TestAgg(db.Model):
     __table_args__ = (PrimaryKeyConstraint('version_id', 'test_id'),)
 
     def __repr__(self):
-        return f"<TestAgg test_id={self.test_id} version_id={self.version_id}>"
+        return f"<TestAgg test_id={self.test_id} class_name={self.class_name} version_id={self.version_id}>"

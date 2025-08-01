@@ -76,10 +76,10 @@
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script>
-        var panelsWithVersions = {{ panels_with_versions|tojson }};
+        var panelsData = {{ panels_data|tojson }};
         $('#panelSelect').on('change', function() {
             var panelId = $(this).val();
-            var versions = panelsWithVersions.find(p => p.panel.id == panelId).versions;
+            var versions = panelsData.find(p => p.panel.id == panelId).versions;
             var versionSelect = $('#versionSelect');
             versionSelect.empty();
             versionSelect.append('<option selected disabled>Choose version...</option>');

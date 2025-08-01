@@ -243,19 +243,14 @@ def index():
             run_ids = [run['id'] for run in all_runs]
             run_map = {run['id']: run for run in all_runs}
 
-            test_cases_df = pd.read_sql_query(f"SELECT * FROM test_cases WHERE test_run_id IN ({','.join(map(str, run_ids))})", db)
+            test_cases_df = pd.read_sql_query(f"SELECT tc.*, tr.timestamp FROM test_cases tc JOIN test_runs tr ON tc.test_run_id = tr.id WHERE tc.test_run_id IN ({','.join(map(str, run_ids))})", db)
             if test_cases_df.empty:
                 continue
 
-            # Determine final status for each unique test
-            def final_status(st_series):
-                return 'fail' if 'fail' in st_series.values else 'pass'
+            # Determine final status for each unique test based on the latest run
+            latest_tests_df = test_cases_df.sort_values('timestamp').groupby('full_name').last()
 
-            unique_tests_df = test_cases_df.groupby('full_name').agg(
-                final_status=('status', final_status),
-                module_name=('module_name', 'first'),
-                class_name=('class_name', 'first')
-            ).reset_index()
+            unique_tests_df = latest_tests_df.rename(columns={'status': 'final_status'}).reset_index()
 
             # Calculate aggregated stats for modules/classes
             module_stats = unique_tests_df.groupby(['module_name', 'class_name'])['final_status'].value_counts().unstack(fill_value=0)

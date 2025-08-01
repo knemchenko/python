@@ -441,7 +441,7 @@ def upload_results():
         if not os.path.exists(total_json_path):
             return jsonify(error="total.json not found in zip"), 400
 
-        with open(total_json_path, 'r') as f:
+        with open(total_json_path, 'r', encoding='utf-8') as f:
             total_data = json.load(f)
 
         db = get_db()
@@ -449,34 +449,62 @@ def upload_results():
         # Get or create panel
         panel = db.execute('SELECT id FROM panels WHERE name = ?', (panel_name,)).fetchone()
         if panel is None:
-            db.execute('INSERT INTO panels (name) VALUES (?)', (panel_name,))
+            cursor = db.execute('INSERT INTO panels (name) VALUES (?)', (panel_name,))
             db.commit()
-            panel_id = db.execute('SELECT last_insert_rowid()').fetchone()[0]
+            panel_id = cursor.lastrowid
         else:
             panel_id = panel['id']
 
         # Get or create version
         version = db.execute('SELECT id FROM versions WHERE name = ? AND panel_id = ?', (version_name, panel_id)).fetchone()
         if version is None:
-            db.execute('INSERT INTO versions (name, panel_id) VALUES (?, ?)', (version_name, panel_id))
+            cursor = db.execute('INSERT INTO versions (name, panel_id) VALUES (?, ?)', (version_name, panel_id))
             db.commit()
-            version_id = db.execute('SELECT last_insert_rowid()').fetchone()[0]
+            version_id = cursor.lastrowid
         else:
             version_id = version['id']
 
-        # Create test run
-        summary = total_data['summary']
-        pass_rate = (summary['passed'] / summary['total']) * 100 if summary['total'] > 0 else 0
+        # Process test cases from the new format
+        test_cases_to_insert = []
+        total_tests = 0
+        for module in total_data.get('modules', []):
+            module_name_full = module.get('name', '')
+            for test in module.get('tests', []):
+                total_tests += 1
+                test_stat = test.get('statistic', {})
+                failures = test_stat.get('Failures', 0)
+                status = 'fail' if failures > 0 else 'pass'
 
+                # Extract class and test names
+                class_name, test_name = test.get('name', '.').split('.', 1)
+
+                test_cases_to_insert.append({
+                    'full_name': test.get('name', ''),
+                    'module_name': module_name_full,
+                    'class_name': class_name,
+                    'test_name': test_name,
+                    'status': status,
+                    'duration': test_stat.get('Duration', 0.0)
+                })
+
+        # Process summary from the new format
+        summary_stat = total_data.get('statistic', {})
+        failed_tests = summary_stat.get('Failures', 0)
+        ignored_tests = summary_stat.get('Ignored', 0)
+        skipped_tests = 0 # Not present in the new format
+        passed_tests = total_tests - failed_tests - ignored_tests - skipped_tests
+        pass_rate = (passed_tests / total_tests) * 100 if total_tests > 0 else 0
+
+        # Create test run
         cursor = db.execute(
             'INSERT INTO test_runs (version_id, timestamp, total_tests, passed_tests, failed_tests, skipped_tests, ignored_tests, pass_rate, report_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            (version_id, int(run_timestamp), summary['total'], summary['passed'], summary['failed'], summary['skipped'], summary['ignored'], pass_rate, os.path.join(save_dir, 'total.html'))
+            (version_id, int(run_timestamp), total_tests, passed_tests, failed_tests, skipped_tests, ignored_tests, pass_rate, os.path.join(save_dir, 'total.html'))
         )
         db.commit()
         test_run_id = cursor.lastrowid
 
         # Create test cases
-        for test_case_data in total_data['test_cases']:
+        for test_case_data in test_cases_to_insert:
             db.execute(
                 'INSERT INTO test_cases (test_run_id, full_name, module_name, class_name, test_name, status, duration) VALUES (?, ?, ?, ?, ?, ?, ?)',
                 (test_run_id, test_case_data['full_name'], test_case_data['module_name'], test_case_data['class_name'], test_case_data['test_name'], test_case_data['status'], test_case_data['duration'])

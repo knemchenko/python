@@ -17,44 +17,17 @@
     <div class="container">
         <h1 class="mt-5">Metrics for {{ panel_name }} - {{ version_name }}</h1>
 
-        <div class="mt-4" id="filter-buttons">
-            <button class="btn btn-primary" data-filter="all">All</button>
-            <button class="btn btn-outline-primary" data-filter="pass">Pass</button>
-            <button class="btn btn-outline-primary" data-filter="fail">Fail</button>
-            <button class="btn btn-outline-primary" data-filter="flaky">Flaky</button>
-            <button class="btn btn-outline-primary" data-filter="new_fail">New Fail</button>
-        </div>
-
-        <table class="table table-hover mt-4">
-            <thead>
-                <tr>
-                    <th>Назва тесту</th>
-                    <th>Статус</th>
-                    <th>Середня Тривалість</th>
-                    <th>Історія</th>
-                    <th>Посилання на звіт</th>
-                </tr>
-            </thead>
-            <tbody id="test-cases-table">
-                {% for test in test_cases %}
-                <tr data-status="{{ test.status }}" data-is-flaky="{{ test.is_flaky }}" data-is-new-fail="{{ test.is_new_fail }}">
-                    <td>
-                        {% if test.is_first_fail %}
-                        <i class="fa fa-bomb" title="First Fail"></i>
-                        {% endif %}
-                        {% if test.is_duration_anomaly %}
-                        <i class="fa fa-clock-o" title="Duration Anomaly"></i>
-                        {% endif %}
-                        {{ test.full_name }}
-                    </td>
-                    <td>{{ test.status }}</td>
-                    <td>{{ "%.2f"|format(test.avg_duration) }}s</td>
-                    <td><button class="btn btn-sm btn-info" data-toggle="modal" data-target="#historyModal" data-history='{{ test.history }}'>History</button></td>
-                    <td><a href="{{ url_for('main.uploaded_file', filename=test.report_path.split('uploads/')[-1]) }}">Report</a></td>
-                </tr>
+        <div class="list-group mt-4">
+            {% if modules %}
+                {% for module in modules %}
+                    <a href="{{ url_for('main.uploaded_file', filename=report_path.split('uploads/')[-1]) }}" class="list-group-item list-group-item-action">
+                        {{ module }}
+                    </a>
                 {% endfor %}
-            </tbody>
-        </table>
+            {% else %}
+                <p class="text-muted">No modules found for this version.</p>
+            {% endif %}
+        </div>
     </div>
 
     <!-- History Modal -->

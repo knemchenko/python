@@ -116,100 +116,32 @@ def version_metrics(panel_name, version_name):
     if not version:
         return "Version not found", 404
 
-    # Get all test cases for this version
-    runs_in_version = db.execute(
-        'SELECT id FROM test_runs WHERE version_id = ?',
+    # Get the latest run for this version
+    latest_run = db.execute(
+        'SELECT * FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1',
         (version['id'],)
-    ).fetchall()
-    run_ids = [run['id'] for run in runs_in_version]
-
-    test_cases_df = pd.DataFrame()
-    if run_ids:
-        query = f"""
-            SELECT tc.*, tr.report_path
-            FROM test_cases tc
-            JOIN test_runs tr ON tc.test_run_id = tr.id
-            WHERE tc.test_run_id IN ({",".join(map(str, run_ids))})
-        """
-        test_cases_df = pd.read_sql_query(query, db)
-
-    if test_cases_df.empty:
-        return render_template('version_metrics.html', panel_name=panel_name, version_name=version_name, test_cases=[])
-
-    # Get latest status for each test
-    latest_tests = test_cases_df.sort_values('test_run_id').groupby('full_name').last()
-
-    # Get average duration
-    avg_duration = test_cases_df.groupby('full_name')['duration'].mean()
-
-    # Combine data
-    latest_tests = latest_tests.merge(avg_duration.rename('avg_duration'), on='full_name')
-
-    # Calculate first fail and duration anomaly
-    latest_tests['is_first_fail'] = False
-    latest_tests['is_duration_anomaly'] = False
-
-    for index, row in latest_tests.iterrows():
-        # First Fail
-        if row['status'] == 'fail':
-            history = test_cases_df[test_cases_df['full_name'] == row['full_name']].sort_values('test_run_id')
-            if len(history) > 1 and history.iloc[-2]['status'] == 'pass':
-                latest_tests.loc[index, 'is_first_fail'] = True
-
-        # Duration Anomaly (for the latest run of the test)
-        history = db.execute(
-            f"SELECT duration FROM test_cases WHERE full_name = '{row['full_name']}' AND status = 'pass' AND id < {row['id']} ORDER BY id DESC LIMIT 10"
-        ).fetchall()
-
-        if len(history) >= 2:
-            durations = [h['duration'] for h in history]
-            avg_d = sum(durations) / len(durations)
-            std_d = pd.Series(durations).std()
-            if row['duration'] > avg_d + 3 * std_d:
-                latest_tests.loc[index, 'is_duration_anomaly'] = True
-
-    # Calculate is_flaky and is_new_fail
-    latest_tests['is_flaky'] = False
-    latest_tests['is_new_fail'] = False
-
-    previous_version = db.execute(
-        'SELECT * FROM versions WHERE panel_id = ? AND id < ? ORDER BY id DESC LIMIT 1',
-        (panel['id'], version['id'])
     ).fetchone()
 
-    for index, row in latest_tests.iterrows():
-        # is_flaky
-        statuses = test_cases_df[test_cases_df['full_name'] == row['full_name']]['status'].unique()
-        if 'pass' in statuses and 'fail' in statuses:
-            latest_tests.loc[index, 'is_flaky'] = True
+    if not latest_run:
+        return render_template('version_metrics.html', panel_name=panel_name, version_name=version_name, modules=[])
 
-        # is_new_fail
-        if row['status'] == 'fail' and previous_version:
-            latest_run_prev = db.execute(
-                'SELECT id FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1',
-                (previous_version['id'],)
-            ).fetchone()
-            if latest_run_prev:
-                status_prev = db.execute(
-                    'SELECT status FROM test_cases WHERE test_run_id = ? AND full_name = ?',
-                    (latest_run_prev['id'], row.name)
-                ).fetchone()
-                if status_prev and status_prev['status'] == 'pass':
-                    latest_tests.loc[index, 'is_new_fail'] = True
+    # Get unique module names from this run
+    modules_cursor = db.execute(
+        'SELECT DISTINCT module_name FROM test_cases WHERE test_run_id = ?',
+        (latest_run['id'],)
+    ).fetchall()
 
+    modules = [row['module_name'] for row in modules_cursor]
 
-    # Calculate history for modal
-    def get_history(full_name):
-        history_df = test_cases_df[test_cases_df['full_name'] == full_name][['status', 'duration']]
-        return history_df.to_json(orient='records')
-
-    latest_tests['history'] = latest_tests.index.to_series().apply(get_history)
+    # The report path is the same for all modules in this run
+    report_path = latest_run['report_path']
 
     return render_template(
         'version_metrics.html',
         panel_name=panel_name,
         version_name=version_name,
-        test_cases=latest_tests.to_dict('records')
+        modules=modules,
+        report_path=report_path
     )
 
 @bp.route('/<panel_name>/metrics', methods=['GET'])

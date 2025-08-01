@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
+    <!-- Plotly.js CDN -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+    <title>Metrics for {{ panel_name }}</title>
+  </head>
+  <body>
+    <div class="container">
+        <h1 class="mt-5">Metrics for {{ panel_name }}</h1>
+
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div id="donut-chart"></div>
+            </div>
+            <div class="col-md-6">
+                <div id="stacked-bar-chart"></div>
+            </div>
+        </div>
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div id="duration-anomaly-chart"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        var donutChart = JSON.parse({{ donut_chart|safe }});
+        Plotly.newPlot('donut-chart', donutChart.data, donutChart.layout);
+
+        var stackedBarChart = JSON.parse({{ stacked_bar_chart|safe }});
+        Plotly.newPlot('stacked-bar-chart', stackedBarChart.data, stackedBarChart.layout);
+
+        var durationAnomalyChart = JSON.parse({{ duration_anomaly_chart|safe }});
+        Plotly.newPlot('duration-anomaly-chart', durationAnomalyChart.data, durationAnomalyChart.layout);
+    </script>
+  </body>
+</html>

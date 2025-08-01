@@ -233,23 +233,32 @@ def index():
     panels_data = []
     for panel in panels:
         versions_data = []
-        versions = db.execute(
-            'SELECT * FROM versions WHERE panel_id = ? ORDER BY id DESC',
-            (panel['id'],)
-        ).fetchall()
+        versions = db.execute('SELECT * FROM versions WHERE panel_id = ? ORDER BY id DESC', (panel['id'],)).fetchall()
 
         for version in versions:
-            latest_run = db.execute(
-                'SELECT * FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1',
-                (version['id'],)
-            ).fetchone()
+            latest_run = db.execute('SELECT * FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1', (version['id'],)).fetchone()
 
+            modules_data = []
             if latest_run:
+                test_cases_df = pd.read_sql_query(f"SELECT * FROM test_cases WHERE test_run_id = {latest_run['id']}", db)
+                if not test_cases_df.empty:
+                    # Group by module and class to get stats
+                    grouped = test_cases_df.groupby(['module_name', 'class_name'])
+                    for (module_name, class_name), group in grouped:
+                        failures = group[group['status'] == 'fail'].shape[0]
+                        total = group.shape[0]
+                        modules_data.append({
+                            'name': f"{module_name} - {class_name}",
+                            'passed': total - failures,
+                            'failed': failures,
+                            'total': total
+                        })
+
                 versions_data.append({
                     'name': version['name'],
-                    'pass_rate': latest_run['pass_rate'],
-                    'tests_summary': f"{latest_run['passed_tests']}/{latest_run['total_tests']}",
-                    'timestamp': latest_run['timestamp']
+                    'timestamp': latest_run['timestamp'],
+                    'report_path': latest_run['report_path'],
+                    'modules': modules_data
                 })
 
         panels_data.append({

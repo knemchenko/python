@@ -12,6 +12,11 @@ def create_app():
     def datetimeformat(value, format='%Y-%m-%d %H:%M:%S'):
         return datetime.datetime.fromtimestamp(int(value)).strftime(format)
 
+    @app.template_filter('relpath')
+    def relpath_filter(path):
+        base = current_app.config['UPLOADS_FOLDER']
+        return os.path.relpath(path, base)
+
     # Load config
     app.config.from_pyfile('../config.py')
 

@@ -20,7 +20,7 @@
         <div class="list-group mt-4">
             {% if modules %}
                 {% for module in modules %}
-                    <a href="{{ url_for('main.uploaded_file', filename=report_path.split('uploads/')[-1]) }}" class="list-group-item list-group-item-action">
+                    <a href="{{ url_for('main.uploaded_file', filename=report_path|relpath) }}" class="list-group-item list-group-item-action">
                         {{ module }}
                     </a>
                 {% endfor %}

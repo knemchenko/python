@@ -254,11 +254,19 @@ def index():
                             'total': total
                         })
 
+                # Calculate summary stats for the version
+                version_total = sum(m['total'] for m in modules_data)
+                version_passed = sum(m['passed'] for m in modules_data)
+                version_failed = sum(m['failed'] for m in modules_data)
+
                 versions_data.append({
                     'name': version['name'],
                     'timestamp': latest_run['timestamp'],
                     'report_path': latest_run['report_path'],
-                    'modules': modules_data
+                    'modules': modules_data,
+                    'total': version_total,
+                    'passed': version_passed,
+                    'failed': version_failed
                 })
 
         panels_data.append({

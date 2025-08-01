@@ -15,7 +15,7 @@ def create_app():
     @app.template_filter('relpath')
     def relpath_filter(path):
         base = current_app.config['UPLOADS_FOLDER']
-        return os.path.relpath(path, base)
+        return os.path.relpath(path, base).replace('\\', '/')
 
     # Load config
     app.config.from_pyfile('../config.py')

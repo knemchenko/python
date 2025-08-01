@@ -237,41 +237,66 @@ def index():
 
         for version in versions:
             all_runs = db.execute('SELECT * FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC', (version['id'],)).fetchall()
-
             if not all_runs:
                 continue
 
-            # Use the timestamp and report path from the most recent run
-            latest_run_timestamp = all_runs[0]['timestamp']
-            latest_report_path = all_runs[0]['report_path']
-
             run_ids = [run['id'] for run in all_runs]
+            run_map = {run['id']: run for run in all_runs}
+
+            test_cases_df = pd.read_sql_query(f"SELECT * FROM test_cases WHERE test_run_id IN ({','.join(map(str, run_ids))})", db)
+            if test_cases_df.empty:
+                continue
+
+            # Determine final status for each unique test
+            def final_status(st_series):
+                return 'fail' if 'fail' in st_series.values else 'pass'
+
+            unique_tests_df = test_cases_df.groupby('full_name').agg(
+                final_status=('status', final_status),
+                module_name=('module_name', 'first'),
+                class_name=('class_name', 'first')
+            ).reset_index()
+
+            # Calculate aggregated stats for modules/classes
+            module_stats = unique_tests_df.groupby(['module_name', 'class_name'])['final_status'].value_counts().unstack(fill_value=0)
+            if 'pass' not in module_stats: module_stats['pass'] = 0
+            if 'fail' not in module_stats: module_stats['fail'] = 0
+            module_stats['total'] = module_stats['pass'] + module_stats['fail']
 
             modules_data = []
-            test_cases_df = pd.read_sql_query(f"SELECT * FROM test_cases WHERE test_run_id IN ({','.join(map(str, run_ids))})", db)
+            for (module_name, class_name), stats in module_stats.iterrows():
+                # Get individual runs for this module/class
+                runs_for_module = test_cases_df[(test_cases_df['module_name'] == module_name) & (test_cases_df['class_name'] == class_name)]
 
-            if not test_cases_df.empty:
-                # Group by module and class to get stats
-                grouped = test_cases_df.groupby(['module_name', 'class_name'])
-                for (module_name, class_name), group in grouped:
-                    failures = group[group['status'] == 'fail'].shape[0]
-                    total = group.shape[0]
-                    modules_data.append({
-                        'name': f"{module_name} - {class_name}",
-                        'passed': total - failures,
-                        'failed': failures,
-                        'total': total
-                    })
+                # Create a list of runs with their unique tests for this module
+                run_details = []
+                for run_id, group in runs_for_module.groupby('test_run_id'):
+                    run_info = run_map.get(run_id)
+                    if run_info:
+                        run_details.append({
+                            'timestamp': run_info['timestamp'],
+                            'report_path': run_info['report_path'],
+                            'passed': group[group['status'] == 'pass'].shape[0],
+                            'failed': group[group['status'] == 'fail'].shape[0],
+                            'total': group.shape[0]
+                        })
 
-            # Calculate summary stats for the version based on the aggregated data
-            version_total = sum(m['total'] for m in modules_data)
-            version_passed = sum(m['passed'] for m in modules_data)
-            version_failed = sum(m['failed'] for m in modules_data)
+                modules_data.append({
+                    'name': f"{module_name} - {class_name}",
+                    'passed': stats['pass'],
+                    'failed': stats['fail'],
+                    'total': stats['total'],
+                    'runs': sorted(run_details, key=lambda x: x['timestamp'], reverse=True)
+                })
+
+            # Calculate summary stats for the entire version
+            version_total = module_stats['total'].sum()
+            version_passed = module_stats['pass'].sum()
+            version_failed = module_stats['fail'].sum()
 
             versions_data.append({
                 'name': version['name'],
-                'timestamp': latest_run_timestamp,
-                'report_path': latest_report_path,
+                'timestamp': all_runs[0]['timestamp'], # Timestamp of the latest run
                 'modules': modules_data,
                 'total': version_total,
                 'passed': version_passed,

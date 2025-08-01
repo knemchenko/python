@@ -21,7 +21,7 @@ import pandas as pd
 import plotly
 import plotly.express as px
 import shutil
-from flask import flash, redirect, url_for
+from flask import flash, redirect, url_for, send_from_directory
 
 @bp.route('/admin/delete_version', methods=['POST'])
 def delete_version():
@@ -125,10 +125,13 @@ def version_metrics(panel_name, version_name):
 
     test_cases_df = pd.DataFrame()
     if run_ids:
-        test_cases_df = pd.read_sql_query(
-            f'SELECT * FROM test_cases WHERE test_run_id IN ({",".join(map(str, run_ids))})',
-            db
-        )
+        query = f"""
+            SELECT tc.*, tr.report_path
+            FROM test_cases tc
+            JOIN test_runs tr ON tc.test_run_id = tr.id
+            WHERE tc.test_run_id IN ({",".join(map(str, run_ids))})
+        """
+        test_cases_df = pd.read_sql_query(query, db)
 
     if test_cases_df.empty:
         return render_template('version_metrics.html', panel_name=panel_name, version_name=version_name, test_cases=[])
@@ -295,111 +298,35 @@ def index():
     db = get_db()
     panels = db.execute('SELECT * FROM panels').fetchall()
 
-    panel_data = []
+    panels_data = []
     for panel in panels:
-        # Get latest version
-        latest_version = db.execute(
-            'SELECT * FROM versions WHERE panel_id = ? ORDER BY id DESC LIMIT 1',
+        versions_data = []
+        versions = db.execute(
+            'SELECT * FROM versions WHERE panel_id = ? ORDER BY id DESC',
             (panel['id'],)
-        ).fetchone()
+        ).fetchall()
 
-        if latest_version:
-            # Get latest test run for the latest version
+        for version in versions:
             latest_run = db.execute(
                 'SELECT * FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1',
-                (latest_version['id'],)
+                (version['id'],)
             ).fetchone()
 
             if latest_run:
-                # Calculate flaky rate
-                runs_in_version = db.execute(
-                    'SELECT id FROM test_runs WHERE version_id = ?',
-                    (latest_version['id'],)
-                ).fetchall()
-                run_ids = [run['id'] for run in runs_in_version]
-
-                flaky_rate = 0
-                if run_ids:
-                    test_cases_df = pd.read_sql_query(
-                        f'SELECT full_name, status FROM test_cases WHERE test_run_id IN ({",".join(map(str, run_ids))})',
-                        db
-                    )
-                    if not test_cases_df.empty:
-                        flaky_tests = test_cases_df.groupby('full_name')['status'].nunique() > 1
-                        flaky_rate = (flaky_tests.sum() / len(flaky_tests)) * 100 if len(flaky_tests) > 0 else 0
-
-                # Calculate new fails
-                new_fails_count = 0
-                previous_version = db.execute(
-                    'SELECT * FROM versions WHERE panel_id = ? AND id < ? ORDER BY id DESC LIMIT 1',
-                    (panel['id'], latest_version['id'])
-                ).fetchone()
-
-                if previous_version:
-                    # Get failed tests in the latest run of the current version
-                    failed_tests_current = pd.read_sql_query(
-                        f"SELECT full_name FROM test_cases WHERE test_run_id = {latest_run['id']} AND status = 'fail'",
-                        db
-                    )
-
-                    if not failed_tests_current.empty:
-                        # Get latest run of the previous version
-                        latest_run_prev = db.execute(
-                            'SELECT * FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1',
-                            (previous_version['id'],)
-                        ).fetchone()
-
-                        if latest_run_prev:
-                            # Get statuses of those failed tests in the previous version's run
-                            test_names_str = "', '".join(failed_tests_current['full_name'])
-                            statuses_prev = pd.read_sql_query(
-                                f"SELECT full_name, status FROM test_cases WHERE test_run_id = {latest_run_prev['id']} AND full_name IN ('{test_names_str}')",
-                                db
-                            )
-
-                            # Merge and find new fails
-                            merged_df = pd.merge(failed_tests_current, statuses_prev, on='full_name', how='left')
-                            new_fails_count = merged_df[merged_df['status'] == 'pass'].shape[0]
-
-                # Get pass-rate trend
-                pass_rate_trend = []
-                last_versions = db.execute(
-                    'SELECT * FROM versions WHERE panel_id = ? ORDER BY id DESC LIMIT 5',
-                    (panel['id'],)
-                ).fetchall()
-
-                for version in reversed(last_versions): # Reversed to have chronological order
-                    last_run_in_version = db.execute(
-                        'SELECT pass_rate FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1',
-                        (version['id'],)
-                    ).fetchone()
-                    if last_run_in_version:
-                        pass_rate_trend.append(last_run_in_version['pass_rate'])
-
-                settings = db.execute('SELECT * FROM panel_settings WHERE panel_id = ?', (panel['id'],)).fetchone()
-
-                panel_data.append({
-                    'name': panel['name'],
-                    'latest_version': latest_version['name'],
+                versions_data.append({
+                    'name': version['name'],
                     'pass_rate': latest_run['pass_rate'],
-                    'flaky_rate': flaky_rate,
-                    'new_fails': new_fails_count,
-                    'pass_rate_trend': pass_rate_trend,
                     'tests_summary': f"{latest_run['passed_tests']}/{latest_run['total_tests']}",
-                    'settings': settings
+                    'timestamp': latest_run['timestamp']
                 })
-        else:
-            panel_data.append({
-                'name': panel['name'],
-                'latest_version': 'N/A',
-                'pass_rate': 'N/A',
-                'flaky_rate': 'N/A',
-                'new_fails': 'N/A',
-                'pass_rate_trend': [],
-                'tests_summary': 'N/A'
-            })
 
-    return render_template('index.html', panels=panel_data)
+        panels_data.append({
+            'id': panel['id'],
+            'name': panel['name'],
+            'versions': versions_data
+        })
+
+    return render_template('index.html', panels_data=panels_data)
 
 @bp.route('/rest/upload_results', methods=['POST'])
 def upload_results():
@@ -514,3 +441,7 @@ def upload_results():
         return jsonify(success=True, message="File uploaded and processed successfully.")
     else:
         return jsonify(error="File type not allowed"), 400
+
+@bp.route('/uploads/<path:filename>')
+def uploaded_file(filename):
+    return send_from_directory(current_app.config['UPLOADS_FOLDER'], filename, as_attachment=False)

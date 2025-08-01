@@ -13,38 +13,44 @@
   <body>
     <div class="container">
         <h1 class="mt-5">Test-Analytics</h1>
-        <table class="table mt-4">
-            <thead>
-                <tr>
-                    <th>Назва Панелі</th>
-                    <th>Остання версія</th>
-                    <th>Pass-rate (остання версія)</th>
-                    <th>Flaky Rate (остання версія)</th>
-                    <th>New Fails (остання версія)</th>
-                    <th>Тренд Pass-rate (sparkline за 5 версій)</th>
-                    <th>Пройдено / Всього тестів</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for panel in panels %}
-                <tr>
-                    <td><a href="#">{{ panel.name }}</a></td>
-                    <td>{{ panel.latest_version }}</td>
-                    {% set settings = panel.settings %}
-                    {% set pass_rate_class = 'table-success' if settings and panel.pass_rate >= settings.pass_rate_yellow else 'table-warning' if settings and panel.pass_rate >= settings.pass_rate_red else 'table-danger' %}
-                    <td class="{{ pass_rate_class }}">{{ "%.2f"|format(panel.pass_rate) }}%</td>
+        <div class="accordion mt-4" id="panelsAccordion">
+            {% for panel in panels_data %}
+            <div class="card">
+                <div class="card-header" id="heading-{{ panel.id }}">
+                    <h2 class="mb-0">
+                        <button class="btn btn-link btn-block text-left" type="button" data-toggle="collapse" data-target="#collapse-{{ panel.id }}" aria-expanded="true" aria-controls="collapse-{{ panel.id }}">
+                            {{ panel.name }}
+                        </button>
+                    </h2>
+                </div>
 
-                    {% set flaky_rate_class = 'table-success' if settings and panel.flaky_rate <= settings.flaky_rate_yellow else 'table-warning' if settings and panel.flaky_rate <= settings.flaky_rate_red else 'table-danger' %}
-                    <td class="{{ flaky_rate_class }}">{{ "%.2f"|format(panel.flaky_rate) }}%</td>
-                    <td>{{ panel.new_fails }}</td>
-                    <td>
-                        <canvas id="sparkline-{{ loop.index }}" width="100" height="30"></canvas>
-                    </td>
-                    <td>{{ panel.tests_summary }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                <div id="collapse-{{ panel.id }}" class="collapse" aria-labelledby="heading-{{ panel.id }}" data-parent="#panelsAccordion">
+                    <div class="card-body">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Version</th>
+                                    <th>Pass Rate</th>
+                                    <th>Summary</th>
+                                    <th>Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for version in panel.versions %}
+                                <tr>
+                                    <td><a href="{{ url_for('main.version_metrics', panel_name=panel.name, version_name=version.name) }}">{{ version.name }}</a></td>
+                                    <td>{{ "%.2f"|format(version.pass_rate) }}%</td>
+                                    <td>{{ version.tests_summary }}</td>
+                                    <td>{{ version.timestamp|datetimeformat }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
     </div>
 
     <!-- Optional JavaScript -->

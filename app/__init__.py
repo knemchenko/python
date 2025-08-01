@@ -3,8 +3,14 @@ from flask import Flask
 from flask_caching import Cache
 
 # App factory
+import datetime
+
 def create_app():
     app = Flask(__name__)
+
+    @app.template_filter('datetimeformat')
+    def datetimeformat(value, format='%Y-%m-%d %H:%M:%S'):
+        return datetime.datetime.fromtimestamp(int(value)).strftime(format)
 
     # Load config
     app.config.from_pyfile('../config.py')

@@ -50,7 +50,7 @@
                     <td>{{ test.status }}</td>
                     <td>{{ "%.2f"|format(test.avg_duration) }}s</td>
                     <td><button class="btn btn-sm btn-info" data-toggle="modal" data-target="#historyModal" data-history='{{ test.history }}'>History</button></td>
-                    <td><a href="#">Report</a></td>
+                    <td><a href="{{ url_for('main.uploaded_file', filename=test.report_path.split('uploads/')[-1]) }}">Report</a></td>
                 </tr>
                 {% endfor %}
             </tbody>

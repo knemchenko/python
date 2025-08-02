@@ -136,13 +136,14 @@
                 new Chart(ctx, {
                     type: 'line',
                     data: {
-                        labels: Array.from(Array(trendData.length).keys()),
+                        labels: trendData.map(d => d.version),
                         datasets: [{
-                            data: trendData,
+                            data: trendData.map(d => d.total),
                             borderColor: 'rgba(0, 123, 255, 0.7)',
                             borderWidth: 2,
                             fill: false,
-                            pointRadius: 0
+                            pointRadius: 1,
+                            pointBackgroundColor: 'rgba(0, 123, 255, 0.7)'
                         }]
                     },
                     options: {

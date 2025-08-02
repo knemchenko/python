@@ -159,77 +159,69 @@ def panel_metrics(panel_name):
     if not panel:
         return "Panel not found", 404
 
-    latest_version = db.execute(
-        'SELECT * FROM versions WHERE panel_id = ? ORDER BY id DESC LIMIT 1',
-        (panel['id'],)
-    ).fetchone()
-    if not latest_version:
+    versions = db.execute('SELECT * FROM versions WHERE panel_id = ? ORDER BY id ASC', (panel['id'],)).fetchall()
+    if not versions:
         return "No versions found for this panel", 404
 
-    latest_run = db.execute(
-        'SELECT * FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1',
-        (latest_version['id'],)
-    ).fetchone()
-    if not latest_run:
-        return "No runs found for this version", 404
+    # --- Data for Line Chart (All Versions) ---
+    line_chart_data = []
+    for version in versions:
+        latest_run = db.execute('SELECT * FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1', (version['id'],)).fetchone()
+        if latest_run:
+            line_chart_data.append({
+                'version': version['name'],
+                'total': latest_run['total_tests'],
+                'passed': latest_run['passed_tests'],
+                'failed': latest_run['failed_tests']
+            })
 
-    test_cases_df = pd.read_sql_query(
-        f'SELECT * FROM test_cases WHERE test_run_id = {latest_run["id"]}',
-        db
-    )
+    line_chart_df = pd.DataFrame(line_chart_data)
+    line_fig = px.line(line_chart_df, x='version', y=['total', 'passed', 'failed'], title='Динаміка по версіям')
+    line_fig.update_traces(mode='lines+markers')
+    line_chart_json = json.dumps(line_fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-    # Donut chart for test statuses
-    status_counts = test_cases_df['status'].value_counts()
-    donut_fig = px.pie(
-        values=status_counts.values,
-        names=status_counts.index,
-        title='Статус тестів',
-        hole=.3
-    )
-    donut_json = json.dumps(donut_fig, cls=plotly.utils.PlotlyJSONEncoder)
+    # --- Data for Other Charts (Latest Version Only) ---
+    latest_version = versions[-1] # Last version in ASC sorted list
+    donut_json, stacked_bar_json, duration_anomaly_json = "{}", "{}", "{}"
 
-    # Stacked bar chart for status by module
-    module_status_counts = test_cases_df.groupby(['module_name', 'status']).size().reset_index(name='counts')
-    stacked_bar_fig = px.bar(
-        module_status_counts,
-        x='module_name',
-        y='counts',
-        color='status',
-        title='Статус по модулях'
-    )
-    stacked_bar_json = json.dumps(stacked_bar_fig, cls=plotly.utils.PlotlyJSONEncoder)
+    latest_run = db.execute('SELECT * FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1', (latest_version['id'],)).fetchone()
+    if latest_run:
+        test_cases_df = pd.read_sql_query(f'SELECT * FROM test_cases WHERE test_run_id = {latest_run["id"]}', db)
+        if not test_cases_df.empty:
+            # Donut chart
+            status_counts = test_cases_df['status'].value_counts()
+            donut_fig = px.pie(values=status_counts.values, names=status_counts.index, title='Статус тестів (остання версія)', hole=.3)
+            donut_json = json.dumps(donut_fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-    # Duration anomaly chart
-    anomalies = []
-    for index, row in test_cases_df.iterrows():
-        # Get last 10 successful runs for this test
-        history = pd.read_sql_query(
-            f"SELECT duration FROM test_cases WHERE full_name = '{row['full_name']}' AND status = 'pass' AND test_run_id < {latest_run['id']} ORDER BY id DESC LIMIT 10",
-            db
-        )
-        if len(history) >= 2: # Need at least 2 points to calculate std
-            avg_d = history['duration'].mean()
-            std_d = history['duration'].std()
-            if row['duration'] > avg_d + 3 * std_d:
-                anomalies.append({
-                    'full_name': row['full_name'],
-                    'deviation': row['duration'] - avg_d
-                })
+            # Stacked Bar chart
+            module_status_counts = test_cases_df.groupby(['module_name', 'status']).size().reset_index(name='counts')
+            stacked_bar_fig = px.bar(module_status_counts, x='module_name', y='counts', color='status', title='Статус по модулях (остання версія)')
+            stacked_bar_json = json.dumps(stacked_bar_fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-    duration_anomaly_json = "{}"
-    if anomalies:
-        anomalies_df = pd.DataFrame(anomalies).nlargest(20, 'deviation')
-        duration_anomaly_fig = px.bar(
-            anomalies_df,
-            x='full_name',
-            y='deviation',
-            title='Топ-20 тестів з аномальною тривалістю'
-        )
-        duration_anomaly_json = json.dumps(duration_anomaly_fig, cls=plotly.utils.PlotlyJSONEncoder)
+            # Duration Anomaly chart
+            anomalies = []
+            for index, row in test_cases_df.iterrows():
+                history = pd.read_sql_query(
+                    f"SELECT duration FROM test_cases WHERE full_name = \"{row['full_name']}\" AND status = 'pass' AND test_run_id < {latest_run['id']} ORDER BY id DESC LIMIT 10",
+                    db
+                )
+                if len(history) >= 2:
+                    avg_d = history['duration'].mean()
+                    std_d = history['duration'].std()
+                    if row['duration'] > avg_d + 3 * std_d:
+                        anomalies.append({
+                            'full_name': row['full_name'],
+                            'deviation': row['duration'] - avg_d
+                        })
+            if anomalies:
+                anomalies_df = pd.DataFrame(anomalies).nlargest(20, 'deviation')
+                duration_anomaly_fig = px.bar(anomalies_df, x='full_name', y='deviation', title='Топ-20 тестів з аномальною тривалістю (остання версія)')
+                duration_anomaly_json = json.dumps(duration_anomaly_fig, cls=plotly.utils.PlotlyJSONEncoder)
 
     return render_template(
         'panel_metrics.html',
         panel_name=panel_name,
+        line_chart=line_chart_json,
         donut_chart=donut_json,
         stacked_bar_chart=stacked_bar_json,
         duration_anomaly_chart=duration_anomaly_json
@@ -333,12 +325,13 @@ def index():
                 # ... (rest of new fails logic would go here, simplified for now)
                 # This logic is complex and might need a dedicated function. For now, placeholder.
 
-            # Pass-rate trend for last 5 versions
+            # Trend data for last 5 versions
             last_5_versions = versions[:5]
             for v in reversed(last_5_versions):
-                last_run = db.execute('SELECT pass_rate FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1', (v['id'],)).fetchone()
+                # We need the total tests from the latest run of each of these old versions
+                last_run = db.execute('SELECT total_tests FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1', (v['id'],)).fetchone()
                 if last_run:
-                    pass_rate_trend.append(last_run['pass_rate'])
+                    pass_rate_trend.append({'version': v['name'], 'total': last_run['total_tests']})
 
         panels_data.append({
             'id': panel['id'],

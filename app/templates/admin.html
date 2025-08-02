@@ -52,16 +52,20 @@
                         <th>Pass-rate Red (%)</th>
                         <th>Flaky-rate Yellow (%)</th>
                         <th>Flaky-rate Red (%)</th>
+                        <th>Regex</th>
+                        <th>Jenkins URL</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in panels_data %}
                     <tr>
                         <td>{{ item.panel.name }}</td>
-                        <td><input type="number" class="form-control" name="pass_rate_yellow_{{ item.panel.id }}" value="{{ item.settings.pass_rate_yellow if item.settings else '95.0' }}"></td>
-                        <td><input type="number" class="form-control" name="pass_rate_red_{{ item.panel.id }}" value="{{ item.settings.pass_rate_red if item.settings else '90.0' }}"></td>
-                        <td><input type="number" class="form-control" name="flaky_rate_yellow_{{ item.panel.id }}" value="{{ item.settings.flaky_rate_yellow if item.settings else '5.0' }}"></td>
-                        <td><input type="number" class="form-control" name="flaky_rate_red_{{ item.panel.id }}" value="{{ item.settings.flaky_rate_red if item.settings else '10.0' }}"></td>
+                        <td><input type="number" step="0.1" class="form-control" name="pass_rate_yellow_{{ item.panel.id }}" value="{{ item.settings.pass_rate_yellow if item.settings else '95.0' }}"></td>
+                        <td><input type="number" step="0.1" class="form-control" name="pass_rate_red_{{ item.panel.id }}" value="{{ item.settings.pass_rate_red if item.settings else '90.0' }}"></td>
+                        <td><input type="number" step="0.1" class="form-control" name="flaky_rate_yellow_{{ item.panel.id }}" value="{{ item.settings.flaky_rate_yellow if item.settings else '5.0' }}"></td>
+                        <td><input type="number" step="0.1" class="form-control" name="flaky_rate_red_{{ item.panel.id }}" value="{{ item.settings.flaky_rate_red if item.settings else '10.0' }}"></td>
+                        <td><input type="text" class="form-control" name="regex_{{ item.panel.id }}" value="{{ item.panel.regex or '' }}"></td>
+                        <td><input type="text" class="form-control" name="jenkins_url_{{ item.panel.id }}" value="{{ item.panel.jenkins_url or '' }}"></td>
                     </tr>
                     {% endfor %}
                 </tbody>

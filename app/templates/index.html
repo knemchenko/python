@@ -1,160 +1,135 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <!-- Required meta tags -->
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+{% extends "base.html" %}
 
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Test Reports Dashboard</h1>
 
-    <title>Test-Analytics</title>
-    <style>
-        .accordion-toggle i {
-            transition: transform 0.3s;
-        }
-        tr.accordion-toggle.collapsed i {
-            transform: rotate(0deg);
-        }
-        tr.accordion-toggle:not(.collapsed) i {
-            transform: rotate(90deg);
-        }
-        .accordion-toggle {
-            cursor: pointer;
-        }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-        <h1 class="mt-5">Test-Analytics</h1>
-        <div class="accordion mt-4" id="panelsAccordion">
-            {% for panel in panels_data %}
-            <div class="card">
-                <div class="card-header" id="heading-panel-{{ panel.id }}">
-                    <h2 class="mb-0">
-                        <button class="btn btn-link btn-block text-left" type="button" data-toggle="collapse" data-target="#collapse-panel-{{ panel.id }}">
-                            {{ panel.name }}
-                            <span class="float-right">
-                                <small class="mr-3">
-                                    Flaky: <a href="{{ url_for('main.version_metrics', panel_name=panel.name, version_name=panel.latest_version_name, filter='flaky') if panel.latest_version_name else '#' }}">{{ "%.2f"|format(panel.flaky_rate) }}%</a>
-                                </small>
-                                <small class="mr-3">
-                                    New Fails: <a href="{{ url_for('main.version_metrics', panel_name=panel.name, version_name=panel.latest_version_name, filter='new_fail') if panel.latest_version_name else '#' }}">{{ panel.new_fails }}</a>
-                                </small>
-                                <canvas id="sparkline-{{ panel.id }}" width="100" height="20" style="display: inline-block; vertical-align: middle;"></canvas>
-                            </span>
-                        </button>
-                    </h2>
-                </div>
-                <div id="collapse-panel-{{ panel.id }}" class="collapse" data-parent="#panelsAccordion">
-                    <div class="card-body">
-                        <div class="accordion" id="versionsAccordion-{{ panel.id }}">
-                            {% for version in panel.versions %}
-                            <div class="card">
-                                <div class="card-header" id="heading-version-{{ panel.id }}-{{ loop.index }}">
-                                    <h2 class="mb-0">
-                                        <button class="btn btn-link btn-block text-left collapsed" type="button" data-toggle="collapse" data-target="#collapse-version-{{ panel.id }}-{{ loop.index }}">
-                                            Version: {{ version.name }}
-                                            <small class="text-muted ml-3">{{ version.timestamp|datetimeformat }}</small>
-                                            <span class="float-right">
-                                                <span class="badge badge-success">Passed: {{ version.passed }}</span>
-                                                <span class="badge badge-danger ml-2">Failed: {{ version.failed }}</span>
-                                                <span class="badge badge-info ml-2">Total: {{ version.total }}</span>
-                                            </span>
-                                        </button>
-                                    </h2>
-                                </div>
-                                <div id="collapse-version-{{ panel.id }}-{{ loop.index }}" class="collapse" data-parent="#versionsAccordion-{{ panel.id }}">
-                                    <div class="card-body">
-                                        <div class="accordion" id="modulesAccordion-{{ panel.id }}-{{ loop.index }}">
-                                            <table class="table table-hover">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Module / Class</th>
-                                                        <th>Passed</th>
-                                                        <th>Failed</th>
-                                                        <th>Total</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {% for module in version.modules %}
-                                                    <tr data-toggle="collapse" data-target="#collapse-module-{{ panel.id }}-{{ version.name|replace('.', '-') }}-{{ loop.index }}" class="accordion-toggle">
-                                                        <td><i class="fa fa-fw fa-chevron-right"></i> {{ module.name }}</td>
-                                                        <td>{{ module.passed }}</td>
-                                                        <td>{{ module.failed }}</td>
-                                                        <td>{{ module.total }}</td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td colspan="4" class="p-0">
-                                                            <div id="collapse-module-{{ panel.id }}-{{ version.name|replace('.', '-') }}-{{ loop.index }}" class="collapse">
-                                                                <ul class="list-group list-group-flush">
-                                                                    {% for run in module.runs %}
-                                                                    <li class="list-group-item">
-                                                                        <a href="{{ url_for('main.uploaded_file', filename=run.report_path|relpath) }}">
-                                                                            Run @ {{ run.timestamp|datetimeformat }}
-                                                                        </a>
-                                                                        <span class="float-right">
-                                                                            <span class="badge badge-success">Passed: {{ run.passed }}</span>
-                                                                            <span class="badge badge-danger ml-2">Failed: {{ run.failed }}</span>
-                                                                            <span class="badge badge-info ml-2">Total: {{ run.total }}</span>
-                                                                        </span>
-                                                                    </li>
-                                                                    {% endfor %}
-                                                                </ul>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                    {% endfor %}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
+
+    <div class="mb-4">
+        <input type="text" id="searchInput" class="form-control" placeholder="Search by version name..." style="max-width: 400px;">
     </div>
 
-    <!-- Optional JavaScript -->
-    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            {% for panel in panels_data %}
-            var trendData = {{ panel.pass_rate_trend|tojson }};
-            if (trendData && trendData.length > 1) {
-                var ctx = document.getElementById('sparkline-{{ panel.id }}').getContext('2d');
-                new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: trendData.map(d => d.version),
-                        datasets: [{
-                            data: trendData.map(d => d.total),
-                            borderColor: 'rgba(0, 123, 255, 0.7)',
-                            borderWidth: 2,
-                            fill: false,
-                            pointRadius: 1,
-                            pointBackgroundColor: 'rgba(0, 123, 255, 0.7)'
-                        }]
-                    },
-                    options: {
-                        scales: { y: { display: false }, x: { display: false } },
-                        plugins: { legend: { display: false } },
-                        elements: { line: { tension: 0.4 } }
-                    }
-                });
+    <div id="versionCards">
+        {% for test_type in test_types %}
+        <div class="card mb-3 version-card" data-version="{{ test_type.label | lower }}">
+            <div class="card-body">
+                <h5 class="card-title">
+                    {{ test_type.label }}
+                    <span class="badge {% if test_type.pass_rate >= 90 %}badge-success{% elif test_type.pass_rate >= 70 %}badge-warning{% else %}badge-danger{% endif %}">
+                        {{ "%.2f"|format(test_type.pass_rate) }}%
+                    </span>
+                </h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <p class="card-text">
+                            {{ test_type.last_json_version if test_type.last_json_version else "No version available" }}<br>
+                            Total Tests: {{ test_type.total_tests }} | Failed: {{ test_type.failed_tests }}
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <canvas id="trendChart-{{ loop.index }}" height="50"></canvas>
+                    </div>
+                </div>
+                <div class="btn-group" role="group">
+                    <a href="{{ url_for('main.panel_metrics', panel_name=test_type.label) }}" class="btn btn-primary">
+                        <i class="fas fa-chart-line"></i> Metrics
+                    </a>
+                    <a href="{{ url_for('main.test_charts_page', panel_type=test_type.regex) }}" class="btn btn-primary">
+                        <i class="fas fa-chart-bar"></i> Test Charts
+                    </a>
+                    <a href="{{ url_for('main.analyze_log_page', panel_type=test_type.regex) }}" class="btn btn-primary">
+                        <i class="fas fa-file-alt"></i> Analyze Log
+                    </a>
+                    <a href="{{ url_for('main.compare_logs_page', panel_type=test_type.regex) }}" class="btn btn-primary">
+                        <i class="fas fa-balance-scale"></i> Compare Logs
+                    </a>
+                    <a href="{{ test_type.jenkins_url }}" target="_blank" class="btn btn-primary">
+                        <i class="fas fa-tools"></i> Jenkins Pipeline
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+
+<script>
+Chart.register(ChartDataLabels);
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const versionCards = document.querySelectorAll('.version-card');
+
+    searchInput.addEventListener('input', function() {
+        const searchText = this.value.toLowerCase().trim();
+        versionCards.forEach(card => {
+            const versionName = card.getAttribute('data-version');
+            if (searchText === '' || versionName.includes(searchText)) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
             }
-            {% endfor %}
         });
-    </script>
-  </body>
-</html>
+    });
+
+    {% for test_type in test_types %}
+        const ctx{{ loop.index }} = document.getElementById('trendChart-{{ loop.index }}').getContext('2d');
+        new Chart(ctx{{ loop.index }}, {
+            type: 'line',
+            data: {
+                labels: [{% for _ in test_type.pass_rate_trend %}'',{% endfor %}],
+                datasets: [{
+                    label: 'Pass Rate (%)',
+                    data: {{ test_type.pass_rate_trend | tojson }},
+                    borderColor: '{% if test_type.pass_rate >= 90 %}#28a745{% elif test_type.pass_rate >= 70 %}#ffc107{% else %}#dc3545{% endif %}',
+                    borderWidth: 2,
+                    fill: false,
+                    pointRadius: 3,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false },
+                    datalabels: {
+                        color: function(context) {
+                            return document.body.classList.contains('dark-mode') ? '#f0f0f0' : '#000';
+                        },
+                        anchor: 'end',
+                        align: 'bottom',
+                        formatter: (value) => value + '%',
+                        font: { size: 10 },
+                        offset: 2
+                    }
+                },
+                scales: {
+                    x: { display: false },
+                    y: {
+                        display: false,
+                        min: 0,
+                        max: 100
+                    }
+                }
+            }
+        });
+    {% endfor %}
+});
+</script>
+{% endblock %}
+
+{% block head %}
+<style>
+.card-title { margin-bottom: 1rem; display: flex; align-items: center; gap: 10px; }
+.card-text { margin-bottom: 1rem; color: #555; }
+.btn-group .btn { margin-right: 5px; display: flex; align-items: center; gap: 5px; }
+.btn i { font-size: 1rem; }
+#searchInput { max-width: 400px; border-radius: 20px; padding: 8px 15px; }
+.badge { font-size: 0.9rem; }
+</style>
+{% endblock %}

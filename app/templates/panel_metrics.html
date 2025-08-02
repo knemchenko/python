@@ -1,76 +1,68 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <!-- Required meta tags -->
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+{% extends "base.html" %}
 
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+{% block content %}
+<div class="container">
+    <h1>Metrics for {{ panel_type }}</h1>
+    <h2>Latest Version: {{ latest_panel }}</h2>
 
-    <!-- Plotly.js CDN -->
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-
-    <title>Metrics for {{ panel_name }}</title>
-  </head>
-  <body>
-    <div class="container">
-        <h1 class="mt-5">Metrics for {{ panel_name }}</h1>
-
-        <div class="row mt-4">
-            <div class="col-md-12">
-                <div id="line-chart"></div>
-            </div>
+    <div class="row">
+        <div class="col-12 chart-container">
+            <h3>Donut Chart</h3>
+            <div id="donut-chart">{{ donut_chart|safe }}</div>
         </div>
-        <hr>
-        <h2 class="mt-4">Latest Version Metrics</h2>
-        <div class="row mt-4">
-            <div class="col-md-6">
-                <div id="donut-chart"></div>
-            </div>
-            <div class="col-md-6">
-                <div id="stacked-bar-chart"></div>
-            </div>
+        <div class="col-12 chart-container">
+            <h3>Overall Metrics</h3>
+            <div id="line-chart">{{ line_chart|safe }}</div>
         </div>
-        <div class="row mt-4">
-            <div class="col-md-12">
-                <div id="duration-anomaly-chart"></div>
-            </div>
+        <div class="col-12 chart-container">
+            <h3>Duration</h3>
+            <div id="duration-chart">{{ duration_chart|safe }}</div>
         </div>
     </div>
+</div>
+{% endblock %}
 
-    <!-- Optional JavaScript -->
-    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <script>
-        var lineChart = JSON.parse({{ line_chart|safe }});
-        Plotly.newPlot('line-chart', lineChart.data, lineChart.layout);
+{% block scripts %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const charts = {
+            'donut-chart': {{ donut_chart|safe }},
+            'line-chart': {{ line_chart|safe }},
+            'duration-chart': {{ duration_chart|safe }}
+        };
 
-        var donutChartData = {{ donut_chart|safe }};
-        if (Object.keys(donutChartData).length > 0) {
-            var donutChart = JSON.parse(donutChartData);
-            Plotly.newPlot('donut-chart', donutChart.data, donutChart.layout);
-        } else {
-            document.getElementById('donut-chart').innerHTML = '<div class="alert alert-info">No data for latest version.</div>';
+        for (const [chartId, chartData] of Object.entries(charts)) {
+            if (Object.keys(chartData).length > 0) {
+                Plotly.newPlot(chartId, chartData.data, chartData.layout);
+            } else {
+                document.getElementById(chartId).innerHTML = '<div class="alert alert-info">No data available.</div>';
+            }
         }
 
-        var stackedBarChartData = {{ stacked_bar_chart|safe }};
-        if (Object.keys(stackedBarChartData).length > 0) {
-            var stackedBarChart = JSON.parse(stackedBarChartData);
-            Plotly.newPlot('stacked-bar-chart', stackedBarChart.data, stackedBarChart.layout);
-        } else {
-            document.getElementById('stacked-bar-chart').innerHTML = '<div class="alert alert-info">No data for latest version.</div>';
+        // Dark mode layout update if needed
+        if (document.body.classList.contains('dark-mode')) {
+            for (const chartId of Object.keys(charts)) {
+                 if (Object.keys(charts[chartId]).length > 0) {
+                    Plotly.relayout(chartId, {
+                        'plot_bgcolor': '#2c2c2c',
+                        'paper_bgcolor': '#2c2c2c',
+                        'font.color': '#f0f0f0'
+                    });
+                 }
+            }
         }
+    });
+</script>
+{% endblock %}
 
-        var durationAnomalyChartData = {{ duration_anomaly_chart|safe }};
-        if (Object.keys(durationAnomalyChartData).length > 0) {
-            var durationAnomalyChart = JSON.parse(durationAnomalyChartData);
-            Plotly.newPlot('duration-anomaly-chart', durationAnomalyChart.data, durationAnomalyChart.layout);
-        } else {
-            document.getElementById('duration-anomaly-chart').innerHTML = '<div class="alert alert-info">No duration anomalies found.</div>';
-        }
-    </script>
-  </body>
-</html>
+{% block head %}
+<style>
+    .chart-container {
+        margin-bottom: 20px;
+        width: 100%; /* Забезпечуємо повну ширину */
+    }
+    .dark-mode .chart-container { background-color: #2c2c2c; }
+    .dark-mode h1, .dark-mode h2, .dark-mode h3 { color: #f0f0f0; }
+</style>
+{% endblock %}

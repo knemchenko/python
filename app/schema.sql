@@ -8,7 +8,9 @@ DROP TABLE IF EXISTS panel_settings;
 -- Panels table
 CREATE TABLE panels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL
+    name TEXT UNIQUE NOT NULL,
+    regex TEXT,
+    jenkins_url TEXT
 );
 
 -- Versions table

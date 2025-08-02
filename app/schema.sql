@@ -9,7 +9,6 @@ DROP TABLE IF EXISTS panel_settings;
 CREATE TABLE panels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
-    regex TEXT,
     jenkins_url TEXT
 );
 

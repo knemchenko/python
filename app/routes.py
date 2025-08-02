@@ -89,11 +89,10 @@ def admin():
                     (panel_id, pass_rate_yellow, pass_rate_red, flaky_rate_yellow, flaky_rate_red)
                 )
                 # Save panel-specific fields
-                regex = request.form.get(f'regex_{panel_id}')
                 jenkins_url = request.form.get(f'jenkins_url_{panel_id}')
                 db.execute(
-                    "UPDATE panels SET regex = ?, jenkins_url = ? WHERE id = ?",
-                    (regex, jenkins_url, panel_id)
+                    "UPDATE panels SET jenkins_url = ? WHERE id = ?",
+                    (jenkins_url, panel_id)
                 )
             db.commit()
             flash('Settings saved successfully.', 'success')
@@ -186,9 +185,18 @@ def panel_metrics(panel_name):
 
     # Line Chart
     line_df = pd.DataFrame(line_chart_data)
-    line_fig = px.bar(line_df, x="version", y="Count", color="Metric", barmode="stack", text="Count", title="Overall Test Metrics by Panel Version", color_discrete_map={"Passed": "#66C2A5", "Failed": "#d73027", "Total": "#2C3E50"})
-    line_fig.add_trace(go.Scatter(x=line_df[line_df['Metric'] == 'Total']['version'], y=line_df[line_df['Metric'] == 'Total']['Count'], mode="lines+markers+text", name="Total Tests", text=line_df[line_df['Metric'] == 'Total']['Count'], textposition="top center"))
-    line_chart_json = json.dumps(line_fig, cls=plotly.utils.PlotlyJSONEncoder)
+    if not line_df.empty:
+        df_melted = line_df.melt(
+            id_vars=["version"],
+            value_vars=["Passed", "Failed"],
+            var_name="Metric",
+            value_name="Count",
+        )
+        line_fig = px.bar(df_melted, x="version", y="Count", color="Metric", barmode="stack", text="Count", title="Overall Test Metrics by Panel Version", color_discrete_map={"Passed": "#66C2A5", "Failed": "#d73027"})
+        line_fig.add_trace(go.Scatter(x=line_df["version"], y=line_df["Total"], mode="lines+markers+text", name="Total Tests", text=line_df["Total"], textposition="top center"))
+        line_chart_json = json.dumps(line_fig, cls=plotly.utils.PlotlyJSONEncoder)
+    else:
+        line_chart_json = "{}"
 
     # Donut Chart
     latest_version = versions[-1]

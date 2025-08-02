@@ -22,9 +22,6 @@
                 </div>
                 <div class="btn-group mb-3" role="group">
                     <a href="{{ url_for('main.panel_metrics', panel_name=panel.name) }}" class="btn btn-sm btn-secondary"><i class="fas fa-chart-line"></i> Metrics</a>
-                    {% if panel.regex %}
-                    <a href="{{ url_for('main.test_charts_page', panel_type=panel.regex) }}" class="btn btn-sm btn-secondary"><i class="fas fa-chart-bar"></i> Test Charts</a>
-                    {% endif %}
                     {% if panel.jenkins_url %}
                     <a href="{{ panel.jenkins_url }}" target="_blank" class="btn btn-sm btn-secondary"><i class="fas fa-tools"></i> Jenkins</a>
                     {% endif %}

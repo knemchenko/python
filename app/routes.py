@@ -140,12 +140,16 @@ def version_metrics(panel_name, version_name):
     # The report path is the same for all modules in this run
     report_path = latest_run['report_path']
 
+    # Get filter from query params
+    active_filter = request.args.get('filter', 'all')
+
     return render_template(
         'version_metrics.html',
         panel_name=panel_name,
         version_name=version_name,
         modules=modules,
-        report_path=report_path
+        report_path=report_path,
+        active_filter=active_filter
     )
 
 @bp.route('/<panel_name>/metrics', methods=['GET'])
@@ -342,7 +346,8 @@ def index():
             'versions': versions_data,
             'flaky_rate': flaky_rate,
             'new_fails': new_fails_count,
-            'pass_rate_trend': pass_rate_trend
+            'pass_rate_trend': pass_rate_trend,
+            'latest_version_name': latest_version['name'] if versions else None
         })
 
     return render_template('index.html', panels_data=panels_data)

@@ -90,6 +90,12 @@
                 }
             });
         });
+
+        // Apply filter from URL on page load
+        var initialFilter = '{{ active_filter }}';
+        if (initialFilter && initialFilter !== 'all') {
+            $('#filter-buttons .btn[data-filter="' + initialFilter + '"]').click();
+        }
     </script>
   </body>
 </html>

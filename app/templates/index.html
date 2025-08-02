@@ -36,8 +36,12 @@
                         <button class="btn btn-link btn-block text-left" type="button" data-toggle="collapse" data-target="#collapse-panel-{{ panel.id }}">
                             {{ panel.name }}
                             <span class="float-right">
-                                <small class="mr-3">Flaky: {{ "%.2f"|format(panel.flaky_rate) }}%</small>
-                                <small class="mr-3">New Fails: {{ panel.new_fails }}</small>
+                                <small class="mr-3">
+                                    Flaky: <a href="{{ url_for('main.version_metrics', panel_name=panel.name, version_name=panel.latest_version_name, filter='flaky') if panel.latest_version_name else '#' }}">{{ "%.2f"|format(panel.flaky_rate) }}%</a>
+                                </small>
+                                <small class="mr-3">
+                                    New Fails: <a href="{{ url_for('main.version_metrics', panel_name=panel.name, version_name=panel.latest_version_name, filter='new_fail') if panel.latest_version_name else '#' }}">{{ panel.new_fails }}</a>
+                                </small>
                                 <canvas id="sparkline-{{ panel.id }}" width="100" height="20" style="display: inline-block; vertical-align: middle;"></canvas>
                             </span>
                         </button>

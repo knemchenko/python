@@ -44,8 +44,13 @@
         var stackedBarChart = JSON.parse({{ stacked_bar_chart|safe }});
         Plotly.newPlot('stacked-bar-chart', stackedBarChart.data, stackedBarChart.layout);
 
-        var durationAnomalyChart = JSON.parse({{ duration_anomaly_chart|safe }});
-        Plotly.newPlot('duration-anomaly-chart', durationAnomalyChart.data, durationAnomalyChart.layout);
+        var durationAnomalyChartData = {{ duration_anomaly_chart|safe }};
+        if (Object.keys(durationAnomalyChartData).length > 0) {
+            var durationAnomalyChart = JSON.parse(durationAnomalyChartData);
+            Plotly.newPlot('duration-anomaly-chart', durationAnomalyChart.data, durationAnomalyChart.layout);
+        } else {
+            document.getElementById('duration-anomaly-chart').innerHTML = '<div class="alert alert-info">No duration anomalies found.</div>';
+        }
     </script>
   </body>
 </html>

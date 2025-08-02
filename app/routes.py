@@ -235,53 +235,86 @@ def index():
     db = get_db()
     panels = db.execute('SELECT * FROM panels').fetchall()
 
-    test_types_data = []
+    panels_data = []
     for panel in panels:
         versions = db.execute('SELECT * FROM versions WHERE panel_id = ? ORDER BY id DESC', (panel['id'],)).fetchall()
 
-        total_tests = 0
-        failed_tests = 0
-        pass_rate = 0
-        last_json_version = "N/A"
+        versions_data = []
+        for version in versions:
+            # Logic to aggregate all runs for a version
+            all_runs = db.execute('SELECT * FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC', (version['id'],)).fetchall()
+            if not all_runs:
+                continue
+
+            run_ids = [run['id'] for run in all_runs]
+            run_map = {run['id']: run for run in all_runs}
+
+            test_cases_df = pd.read_sql_query(f"SELECT tc.*, tr.timestamp FROM test_cases tc JOIN test_runs tr ON tc.test_run_id = tr.id WHERE tc.test_run_id IN ({','.join(map(str, run_ids))})", db)
+            if test_cases_df.empty:
+                continue
+
+            # Final status based on latest run
+            latest_tests_df = test_cases_df.sort_values('timestamp').groupby('full_name').last()
+            unique_tests_df = latest_tests_df.rename(columns={'status': 'final_status'}).reset_index()
+
+            # Aggregated stats for modules/classes
+            module_stats = unique_tests_df.groupby(['module_name', 'class_name'])['final_status'].value_counts().unstack(fill_value=0)
+            if 'pass' not in module_stats: module_stats['pass'] = 0
+            if 'fail' not in module_stats: module_stats['fail'] = 0
+            module_stats['total'] = module_stats['pass'] + module_stats['fail']
+
+            modules_data = []
+            for (module_name, class_name), stats in module_stats.iterrows():
+                runs_for_module = test_cases_df[(test_cases_df['module_name'] == module_name) & (test_cases_df['class_name'] == class_name)]
+                run_details = []
+                for run_id, group in runs_for_module.groupby('test_run_id'):
+                    run_info = run_map.get(run_id)
+                    if run_info:
+                        run_details.append({
+                            'timestamp': run_info['timestamp'], 'report_path': run_info['report_path'],
+                            'passed': group[group['status'] == 'pass'].shape[0],
+                            'failed': group[group['status'] == 'fail'].shape[0], 'total': group.shape[0]
+                        })
+                modules_data.append({
+                    'name': f"{module_name} - {class_name}", 'passed': stats['pass'],
+                    'failed': stats['fail'], 'total': stats['total'],
+                    'runs': sorted(run_details, key=lambda x: x['timestamp'], reverse=True)
+                })
+
+            # Version summary stats
+            versions_data.append({
+                'name': version['name'], 'timestamp': all_runs[0]['timestamp'],
+                'modules': modules_data, 'total': module_stats['total'].sum(),
+                'passed': module_stats['pass'].sum(), 'failed': module_stats['fail'].sum()
+            })
+
+        # High-level panel metrics
+        flaky_rate = 0
+        new_fails_count = 0
         pass_rate_trend = []
-
         if versions:
-            # Get stats from the latest version for the main card display
-            latest_version = versions[0]
-            last_json_version = latest_version['name']
-
-            latest_version_runs = db.execute('SELECT * FROM test_runs WHERE version_id = ?', (latest_version['id'],)).fetchall()
+            latest_version_info = versions[0]
+            # Flaky Rate for the latest version
+            latest_version_runs = db.execute('SELECT id FROM test_runs WHERE version_id = ?', (latest_version_info['id'],)).fetchall()
             if latest_version_runs:
-                run_ids = [r['id'] for r in latest_version_runs]
+                run_ids_latest = [r['id'] for r in latest_version_runs]
+                flaky_df = pd.read_sql_query(f'SELECT full_name, status FROM test_cases WHERE test_run_id IN ({",".join(map(str, run_ids_latest))})', db)
+                if not flaky_df.empty:
+                    flaky_tests = flaky_df.groupby('full_name')['status'].nunique() > 1
+                    flaky_rate = (flaky_tests.sum() / len(flaky_tests)) * 100 if len(flaky_tests) > 0 else 0
 
-                # Use unique tests for stats, based on the latest status
-                query = f"SELECT tc.full_name, tc.status, tr.timestamp FROM test_cases tc JOIN test_runs tr ON tc.test_run_id = tr.id WHERE tc.test_run_id IN ({','.join(map(str, run_ids))})"
-                all_tests_df = pd.read_sql_query(query, db)
-                if not all_tests_df.empty:
-                    unique_tests_df = all_tests_df.sort_values('timestamp').groupby('full_name').last()
-                    total_tests = len(unique_tests_df)
-                    failed_tests = unique_tests_df[unique_tests_df['status'] == 'fail'].shape[0]
-                    passed_tests = total_tests - failed_tests
-                    pass_rate = (passed_tests / total_tests) * 100 if total_tests > 0 else 0
-
-            # Get pass rate trend for the last 5 versions
+            # Pass Rate Trend for last 5 versions
             for v in reversed(versions[:5]):
-                latest_run_for_v = db.execute('SELECT pass_rate FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1', (v['id'],)).fetchone()
-                if latest_run_for_v:
-                    pass_rate_trend.append(latest_run_for_v['pass_rate'])
+                last_run = db.execute('SELECT pass_rate FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1', (v['id'],)).fetchone()
+                if last_run:
+                    pass_rate_trend.append(last_run['pass_rate'])
 
-        test_types_data.append({
-            'label': panel['name'],
-            'pass_rate': pass_rate,
-            'last_json_version': last_json_version,
-            'total_tests': total_tests,
-            'failed_tests': failed_tests,
-            'pass_rate_trend': pass_rate_trend,
-            'regex': panel['regex'],
-            'jenkins_url': panel['jenkins_url']
+        panels_data.append({
+            'id': panel['id'], 'name': panel['name'], 'regex': panel['regex'], 'jenkins_url': panel['jenkins_url'],
+            'versions': versions_data, 'flaky_rate': flaky_rate, 'new_fails': new_fails_count, 'pass_rate_trend': pass_rate_trend
         })
 
-    return render_template('index.html', test_types=test_types_data)
+    return render_template('index.html', panels_data=panels_data)
 
 @bp.route('/rest/upload_results', methods=['POST'])
 def upload_results():

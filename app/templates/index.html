@@ -4,48 +4,79 @@
 <div class="container">
     <h1 class="mb-4">Test Reports Dashboard</h1>
 
-
     <div class="mb-4">
-        <input type="text" id="searchInput" class="form-control" placeholder="Search by version name..." style="max-width: 400px;">
+        <input type="text" id="searchInput" class="form-control" placeholder="Search by panel name..." style="max-width: 400px;">
     </div>
 
-    <div id="versionCards">
-        {% for test_type in test_types %}
-        <div class="card mb-3 version-card" data-version="{{ test_type.label | lower }}">
+    <div id="panelsContainer">
+        {% for panel in panels_data %}
+        <div class="card mb-3 panel-card" data-name="{{ panel.name | lower }}">
             <div class="card-body">
-                <h5 class="card-title">
-                    {{ test_type.label }}
-                    <span class="badge {% if test_type.pass_rate >= 90 %}badge-success{% elif test_type.pass_rate >= 70 %}badge-warning{% else %}badge-danger{% endif %}">
-                        {{ "%.2f"|format(test_type.pass_rate) }}%
-                    </span>
-                </h5>
-                <div class="row">
-                    <div class="col-md-6">
-                        <p class="card-text">
-                            {{ test_type.last_json_version if test_type.last_json_version else "No version available" }}<br>
-                            Total Tests: {{ test_type.total_tests }} | Failed: {{ test_type.failed_tests }}
-                        </p>
-                    </div>
-                    <div class="col-md-6">
-                        <canvas id="trendChart-{{ loop.index }}" height="50"></canvas>
+                <!-- Panel Header -->
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title">{{ panel.name }}</h5>
+                    <div>
+                        <span class="badge badge-warning mr-2">Flaky: {{ "%.2f"|format(panel.flaky_rate) }}%</span>
+                        <span class="badge badge-danger">New Fails: {{ panel.new_fails }}</span>
                     </div>
                 </div>
-                <div class="btn-group" role="group">
-                    <a href="{{ url_for('main.panel_metrics', panel_name=test_type.label) }}" class="btn btn-primary">
-                        <i class="fas fa-chart-line"></i> Metrics
-                    </a>
-                    <a href="{{ url_for('main.test_charts_page', panel_type=test_type.regex) }}" class="btn btn-primary">
-                        <i class="fas fa-chart-bar"></i> Test Charts
-                    </a>
-                    <a href="{{ url_for('main.analyze_log_page', panel_type=test_type.regex) }}" class="btn btn-primary">
-                        <i class="fas fa-file-alt"></i> Analyze Log
-                    </a>
-                    <a href="{{ url_for('main.compare_logs_page', panel_type=test_type.regex) }}" class="btn btn-primary">
-                        <i class="fas fa-balance-scale"></i> Compare Logs
-                    </a>
-                    <a href="{{ test_type.jenkins_url }}" target="_blank" class="btn btn-primary">
-                        <i class="fas fa-tools"></i> Jenkins Pipeline
-                    </a>
+                <div class="btn-group mb-3" role="group">
+                    <a href="{{ url_for('main.panel_metrics', panel_name=panel.name) }}" class="btn btn-sm btn-secondary"><i class="fas fa-chart-line"></i> Metrics</a>
+                    <a href="{{ url_for('main.test_charts_page', panel_type=panel.regex) }}" class="btn btn-sm btn-secondary"><i class="fas fa-chart-bar"></i> Test Charts</a>
+                    <a href="{{ panel.jenkins_url }}" target="_blank" class="btn btn-sm btn-secondary"><i class="fas fa-tools"></i> Jenkins</a>
+                </div>
+
+                <!-- Nested Accordion for Versions -->
+                <div class="accordion" id="versionsAccordion-{{ panel.id }}">
+                    {% for version in panel.versions %}
+                    <div class="card">
+                        <div class="card-header p-1" id="heading-version-{{ panel.id }}-{{ loop.index }}">
+                            <h2 class="mb-0">
+                                <button class="btn btn-link btn-block text-left collapsed" type="button" data-toggle="collapse" data-target="#collapse-version-{{ panel.id }}-{{ loop.index }}">
+                                    Version: {{ version.name }}
+                                    <small class="text-muted ml-3">{{ version.timestamp|datetimeformat }}</small>
+                                    <span class="float-right">
+                                        <span class="badge badge-success">Passed: {{ version.passed }}</span>
+                                        <span class="badge badge-danger ml-2">Failed: {{ version.failed }}</span>
+                                        <span class="badge badge-info ml-2">Total: {{ version.total }}</span>
+                                    </span>
+                                </button>
+                            </h2>
+                        </div>
+                        <div id="collapse-version-{{ panel.id }}-{{ loop.index }}" class="collapse" data-parent="#versionsAccordion-{{ panel.id }}">
+                            <div class="card-body">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Module / Class</th>
+                                            <th>Passed</th>
+                                            <th>Failed</th>
+                                            <th>Total</th>
+                                            <th>Runs</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for module in version.modules %}
+                                        <tr>
+                                            <td>{{ module.name }}</td>
+                                            <td>{{ module.passed }}</td>
+                                            <td>{{ module.failed }}</td>
+                                            <td>{{ module.total }}</td>
+                                            <td>
+                                                {% for run in module.runs %}
+                                                    <a href="{{ url_for('main.uploaded_file', filename=run.report_path|relpath) }}" class="d-block">
+                                                        Run @ {{ run.timestamp|datetimeformat }} (P:{{ run.passed }}, F:{{ run.failed }})
+                                                    </a>
+                                                {% endfor %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
         </div>
@@ -55,81 +86,30 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-
 <script>
-Chart.register(ChartDataLabels);
-
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchInput');
-    const versionCards = document.querySelectorAll('.version-card');
+    const panelCards = document.querySelectorAll('.panel-card');
 
     searchInput.addEventListener('input', function() {
         const searchText = this.value.toLowerCase().trim();
-        versionCards.forEach(card => {
-            const versionName = card.getAttribute('data-version');
-            if (searchText === '' || versionName.includes(searchText)) {
+        panelCards.forEach(card => {
+            const panelName = card.getAttribute('data-name');
+            if (searchText === '' || panelName.includes(searchText)) {
                 card.style.display = 'block';
             } else {
                 card.style.display = 'none';
             }
         });
     });
-
-    {% for test_type in test_types %}
-        const ctx{{ loop.index }} = document.getElementById('trendChart-{{ loop.index }}').getContext('2d');
-        new Chart(ctx{{ loop.index }}, {
-            type: 'line',
-            data: {
-                labels: [{% for _ in test_type.pass_rate_trend %}'',{% endfor %}],
-                datasets: [{
-                    label: 'Pass Rate (%)',
-                    data: {{ test_type.pass_rate_trend | tojson }},
-                    borderColor: '{% if test_type.pass_rate >= 90 %}#28a745{% elif test_type.pass_rate >= 70 %}#ffc107{% else %}#dc3545{% endif %}',
-                    borderWidth: 2,
-                    fill: false,
-                    pointRadius: 3,
-                    tension: 0.1
-                }]
-            },
-            options: {
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { enabled: false },
-                    datalabels: {
-                        color: function(context) {
-                            return document.body.classList.contains('dark-mode') ? '#f0f0f0' : '#000';
-                        },
-                        anchor: 'end',
-                        align: 'bottom',
-                        formatter: (value) => value + '%',
-                        font: { size: 10 },
-                        offset: 2
-                    }
-                },
-                scales: {
-                    x: { display: false },
-                    y: {
-                        display: false,
-                        min: 0,
-                        max: 100
-                    }
-                }
-            }
-        });
-    {% endfor %}
 });
 </script>
 {% endblock %}
 
 {% block head %}
 <style>
-.card-title { margin-bottom: 1rem; display: flex; align-items: center; gap: 10px; }
-.card-text { margin-bottom: 1rem; color: #555; }
-.btn-group .btn { margin-right: 5px; display: flex; align-items: center; gap: 5px; }
-.btn i { font-size: 1rem; }
-#searchInput { max-width: 400px; border-radius: 20px; padding: 8px 15px; }
-.badge { font-size: 0.9rem; }
+.card-title { margin-bottom: 0.5rem; }
+.btn-group .btn { font-size: 0.8rem; }
+.accordion .card-header { cursor: pointer; }
 </style>
 {% endblock %}

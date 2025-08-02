@@ -27,7 +27,7 @@
                 <label for="panelSelect">Panel</label>
                 <select class="form-control" id="panelSelect" name="panel_id">
                     <option selected disabled>Choose panel...</option>
-                    {% for item in panels_with_versions %}
+                    {% for item in panels_data %}
                     <option value="{{ item.panel.id }}">{{ item.panel.name }}</option>
                     {% endfor %}
                 </select>

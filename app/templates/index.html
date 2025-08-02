@@ -22,8 +22,12 @@
                 </div>
                 <div class="btn-group mb-3" role="group">
                     <a href="{{ url_for('main.panel_metrics', panel_name=panel.name) }}" class="btn btn-sm btn-secondary"><i class="fas fa-chart-line"></i> Metrics</a>
+                    {% if panel.regex %}
                     <a href="{{ url_for('main.test_charts_page', panel_type=panel.regex) }}" class="btn btn-sm btn-secondary"><i class="fas fa-chart-bar"></i> Test Charts</a>
+                    {% endif %}
+                    {% if panel.jenkins_url %}
                     <a href="{{ panel.jenkins_url }}" target="_blank" class="btn btn-sm btn-secondary"><i class="fas fa-tools"></i> Jenkins</a>
+                    {% endif %}
                 </div>
 
                 <!-- Nested Accordion for Versions -->
@@ -57,17 +61,30 @@
                                     </thead>
                                     <tbody>
                                         {% for module in version.modules %}
-                                        <tr>
-                                            <td>{{ module.name }}</td>
+                                        <tr data-toggle="collapse" data-target="#collapse-module-{{ panel.id }}-{{ version.name|replace('.', '-') }}-{{ loop.index }}" class="accordion-toggle collapsed">
+                                            <td><i class="fas fa-chevron-right"></i> {{ module.name }}</td>
                                             <td>{{ module.passed }}</td>
                                             <td>{{ module.failed }}</td>
                                             <td>{{ module.total }}</td>
-                                            <td>
-                                                {% for run in module.runs %}
-                                                    <a href="{{ url_for('main.uploaded_file', filename=run.report_path|relpath) }}" class="d-block">
-                                                        Run @ {{ run.timestamp|datetimeformat }} (P:{{ run.passed }}, F:{{ run.failed }})
-                                                    </a>
-                                                {% endfor %}
+                                        </tr>
+                                        <tr>
+                                            <td colspan="4" class="p-0">
+                                                <div id="collapse-module-{{ panel.id }}-{{ version.name|replace('.', '-') }}-{{ loop.index }}" class="collapse">
+                                                    <ul class="list-group list-group-flush">
+                                                        {% for run in module.runs %}
+                                                        <li class="list-group-item">
+                                                            <a href="{{ url_for('main.uploaded_file', filename=run.report_path|relpath) }}">
+                                                                Run @ {{ run.timestamp|datetimeformat }}
+                                                            </a>
+                                                            <span class="float-right">
+                                                                <span class="badge badge-success">Passed: {{ run.passed }}</span>
+                                                                <span class="badge badge-danger ml-2">Failed: {{ run.failed }}</span>
+                                                                <span class="badge badge-info ml-2">Total: {{ run.total }}</span>
+                                                            </span>
+                                                        </li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                </div>
                                             </td>
                                         </tr>
                                         {% endfor %}

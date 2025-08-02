@@ -20,6 +20,7 @@ import pandas as pd
 
 import plotly
 import plotly.express as px
+import plotly.graph_objects as go
 import shutil
 from flask import flash, redirect, url_for, send_from_directory
 
@@ -63,6 +64,7 @@ def delete_version():
 def admin():
     db = get_db()
 
+    panels = db.execute('SELECT * FROM panels').fetchall()
     if request.method == 'POST':
         form_type = request.form.get('form_type')
         if form_type == 'settings':
@@ -97,7 +99,6 @@ def admin():
             flash('Settings saved successfully.', 'success')
             return redirect(url_for('main.admin'))
 
-    panels = db.execute('SELECT * FROM panels').fetchall()
     panels_data = []
     for panel_row in panels:
         panel = dict(panel_row)
@@ -183,43 +184,41 @@ def panel_metrics(panel_name):
                 'Total': latest_run['total_tests']
             })
 
+    # Line Chart
     line_df = pd.DataFrame(line_chart_data)
-    line_fig = px.line(line_df, x='version', y=['Passed', 'Failed', 'Total'], color_discrete_map={'Passed': 'green', 'Failed': 'red', 'Total': 'black'})
+    line_fig = px.bar(line_df, x="version", y="Count", color="Metric", barmode="stack", text="Count", title="Overall Test Metrics by Panel Version", color_discrete_map={"Passed": "#66C2A5", "Failed": "#d73027", "Total": "#2C3E50"})
+    line_fig.add_trace(go.Scatter(x=line_df[line_df['Metric'] == 'Total']['version'], y=line_df[line_df['Metric'] == 'Total']['Count'], mode="lines+markers+text", name="Total Tests", text=line_df[line_df['Metric'] == 'Total']['Count'], textposition="top center"))
     line_chart_json = json.dumps(line_fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-    # Data for Donut and Duration charts (Latest Version Only)
+    # Donut Chart
     latest_version = versions[-1]
     donut_json = "{}"
-    duration_json = "{}"
-
     latest_run = db.execute('SELECT * FROM test_runs WHERE version_id = ? ORDER BY timestamp DESC LIMIT 1', (latest_version['id'],)).fetchone()
     if latest_run:
-        test_cases_df = pd.read_sql_query(f'SELECT * FROM test_cases WHERE test_run_id = {latest_run["id"]}', db)
-        if not test_cases_df.empty:
-            # Donut chart
-            status_counts = test_cases_df['status'].value_counts()
-            donut_fig = px.pie(values=status_counts.values, names=status_counts.index, title='Статус тестів (остання версія)', hole=.3)
+        df_latest = pd.read_sql_query(f"SELECT * FROM test_cases WHERE test_run_id = {latest_run['id']}", db)
+        if not df_latest.empty:
+            total = latest_run['total_tests']
+            failed = latest_run['failed_tests']
+            ignored = latest_run['ignored_tests']
+            passed = total - failed - ignored
+            labels = ["Passed", "Failed", "Ignored"]
+            values = [passed, failed, ignored]
+            colors = ["#66C2A5", "#d73027", "#FDB462"]
+            donut_fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=0.4, marker=dict(colors=colors), textinfo='label+percent', hoverinfo='label+value+percent')])
+            donut_fig.update_layout(title=f"Latest Panel: {latest_version['name']}", annotations=[dict(text=f"Total {total}", x=0.5, y=0.5, font_size=14, showarrow=False)])
             donut_json = json.dumps(donut_fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-            # Duration Anomaly chart
-            anomalies = []
-            for index, row in test_cases_df.iterrows():
-                history = pd.read_sql_query(
-                    f"SELECT duration FROM test_cases WHERE full_name = \"{row['full_name']}\" AND status = 'pass' AND test_run_id < {latest_run['id']} ORDER BY id DESC LIMIT 10",
-                    db
-                )
-                if len(history) >= 2:
-                    avg_d = history['duration'].mean()
-                    std_d = history['duration'].std()
-                    if row['duration'] > avg_d + 3 * std_d:
-                        anomalies.append({
-                            'full_name': row['full_name'],
-                            'deviation': row['duration'] - avg_d
-                        })
-            if anomalies:
-                anomalies_df = pd.DataFrame(anomalies).nlargest(20, 'deviation')
-                duration_fig = px.bar(anomalies_df, x='full_name', y='deviation', title='Топ-20 тестів з аномальною тривалістю')
-                duration_json = json.dumps(duration_fig, cls=plotly.utils.PlotlyJSONEncoder)
+    # Duration Chart
+    duration_data = []
+    for version in versions:
+        # Sum of durations for all runs in a version
+        duration_sum = db.execute('SELECT SUM(duration) as total_duration FROM test_cases tc JOIN test_runs tr ON tc.test_run_id = tr.id WHERE tr.version_id = ?', (version['id'],)).fetchone()['total_duration']
+        if duration_sum:
+            duration_data.append({'version': version['name'], 'duration_seconds': duration_sum})
+
+    duration_df = pd.DataFrame(duration_data)
+    duration_fig = px.bar(duration_df, x='version', y='duration_seconds', text=[f"{d/60:.1f} min" for d in duration_df['duration_seconds']], title="Test Duration by Panel Version")
+    duration_json = json.dumps(duration_fig, cls=plotly.utils.PlotlyJSONEncoder)
 
     return render_template(
         'panel_metrics.html',

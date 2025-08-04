@@ -26,6 +26,12 @@ async def main():
     print("--- Starting Daily Forecast Update and Reporting ---")
     print(f"Processing tickers: {config.TICKERS}")
 
+    # DEBUG: List files in data directory to check for persistence
+    if os.path.exists(config.DATA_DIR):
+        print(f"--- [DEBUG] Files in '{config.DATA_DIR}': {os.listdir(config.DATA_DIR)}")
+    else:
+        print(f"--- [DEBUG] Data directory '{config.DATA_DIR}' does not exist.")
+
     data_loader = DataLoader()
     visualizer = Visualizer()
 

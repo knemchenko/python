@@ -59,6 +59,11 @@ class Visualizer:
         ax.legend()
         ax.grid(True)
         plt.xticks(rotation=45)
+
+        # Set explicit limits to ensure the view is correct
+        if not forecast.empty:
+            ax.set_xlim(last_30_days_actual.index[0], forecast.index[-1])
+
         plt.tight_layout()
 
         # 5. Save the plot

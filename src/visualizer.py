@@ -38,7 +38,10 @@ class Visualizer:
         fig, ax = plt.subplots(figsize=(15, 8))
 
         # 1. Plot historical data (last 30 days)
-        last_30_days_actual = historical_data.last('30D')
+        # Use boolean indexing for robustness instead of .last()
+        last_date = historical_data.index[-1]
+        start_date = last_date - pd.Timedelta(days=30)
+        last_30_days_actual = historical_data[historical_data.index > start_date]
         ax.plot(last_30_days_actual.index, last_30_days_actual.values, color='gray', marker='o', linestyle='-', label='Actual (Last 30 days)')
 
         # 2. Plot forecast data

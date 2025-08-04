@@ -46,18 +46,19 @@ class Predictor:
         print(f"\n--- Generating forecasts for {self.ticker} for the next {n_periods} days ---")
 
         for model in self.models:
+            model_name = str(model)
             try:
-                print(f"Updating and predicting with model: {model}...")
+                print(f"Updating and predicting with model: {model_name}...")
                 # 1. Retrain the model on the full, most recent dataset
                 model.fit(full_data)
 
                 # 2. Generate a new forecast
                 forecast = model.predict(n_periods=n_periods)
-                forecasts[str(model)] = forecast
+                forecasts[model_name] = forecast
 
             except Exception as e:
-                print(f"Failed to update and predict with {model}. Error: {e}")
-                # Store an empty series on failure
-                forecasts[str(model)] = pd.Series(dtype='float64')
+                print(f"!!! Failed to update and predict with {model_name}. Error: {e}")
+                # Store an empty series on failure to be handled by the reporter
+                forecasts[model_name] = pd.Series(dtype='float64')
 
         return forecasts

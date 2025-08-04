@@ -1,0 +1,14 @@
+yfinance
+pandas
+scikit-learn
+statsmodels
+xgboost
+matplotlib
+python-telegram-bot
+arch
+numpy
+scipy
+joblib
+pmdarima
+torch
+darts

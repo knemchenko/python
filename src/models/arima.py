@@ -28,8 +28,12 @@ class ArimaModel(BaseModel):
         """
         print(f"Fitting ArimaModel with order {self.order}...")
         self.train_series = data
-        self.model = ARIMA(data, order=self.order, **self.kwargs).fit()
-        print(self.model.summary())
+        try:
+            self.model = ARIMA(data, order=self.order, **self.kwargs).fit()
+            print(self.model.summary())
+        except Exception as e:
+            print(f"!!! ArimaModel failed to fit. Error: {e}")
+            self.model = None
 
     def predict(self, n_periods: int) -> pd.Series:
         """

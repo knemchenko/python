@@ -32,14 +32,18 @@ class HoltWintersModel(BaseModel):
         """
         print(f"Fitting HoltWintersModel...")
         self.train_series = data
-        self.model = ExponentialSmoothing(
-            data,
-            trend=self.trend,
-            seasonal=self.seasonal,
-            seasonal_periods=self.seasonal_periods,
-            **self.kwargs
-        ).fit()
-        print(self.model.summary())
+        try:
+            self.model = ExponentialSmoothing(
+                data,
+                trend=self.trend,
+                seasonal=self.seasonal,
+                seasonal_periods=self.seasonal_periods,
+                **self.kwargs
+            ).fit()
+            print(self.model.summary())
+        except Exception as e:
+            print(f"!!! HoltWintersModel failed to fit. Error: {e}")
+            self.model = None
 
     def predict(self, n_periods: int) -> pd.Series:
         """

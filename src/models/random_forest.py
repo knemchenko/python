@@ -2,6 +2,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from src.models.base_model import BaseModel
 import numpy as np
+from typing import Tuple
 
 class RandomForestModel(BaseModel):
     """
@@ -28,7 +29,7 @@ class RandomForestModel(BaseModel):
         )
         self.train_series = None
 
-    def _create_features(self, data: pd.Series) -> tuple[pd.DataFrame, pd.Series]:
+    def _create_features(self, data: pd.Series) -> Tuple[pd.DataFrame, pd.Series]:
         """
         Creates a feature matrix (X) and target vector (y) from time series data.
         """

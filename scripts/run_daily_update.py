@@ -4,15 +4,22 @@ import os
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+import sys
+import os
+import asyncio
+
+# Add the project root to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from src.data_loader import DataLoader
 from src.predictor import Predictor
 from src.visualizer import Visualizer
 from src.reporter import Reporter
 from src import config
 
-def main():
+async def main():
     """
-    Main function to run the daily update and reporting pipeline.
+    Main asynchronous function to run the daily update and reporting pipeline.
     """
     print("--- Starting Daily Forecast Update and Reporting ---")
     print(f"Processing tickers: {config.TICKERS}")
@@ -55,7 +62,7 @@ def main():
             # 4. Send report
             print(f"\n[Step 4/4] Sending report for {ticker}...")
             latest_price = data_df['Close'].iloc[-1]
-            reporter.send_report(
+            await reporter.send_report(
                 ticker=ticker,
                 current_price=latest_price,
                 forecasts=forecasts,
@@ -72,4 +79,5 @@ def main():
     print("\n--- Daily Forecast Update Finished ---")
 
 if __name__ == "__main__":
-    main()
+    # Run the main async function
+    asyncio.run(main())

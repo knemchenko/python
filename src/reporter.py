@@ -60,10 +60,16 @@ class Reporter:
 
         return "\n".join(report_lines)
 
-    async def _send_report_async(self, report_text: str, plot_path: str):
+    async def send_report(self, ticker: str, current_price: float, forecasts: Dict[str, pd.Series], plot_path: str):
         """
-        Asynchronously sends the report photo and caption.
+        Formats and sends the full report. This is now an async method.
         """
+        if not plot_path or not os.path.exists(plot_path):
+            print("Plot file not found. Cannot send report.")
+            return
+
+        report_text = self._format_report(ticker, current_price, forecasts)
+
         try:
             with open(plot_path, 'rb') as photo:
                 await self.bot.send_photo(
@@ -75,16 +81,3 @@ class Reporter:
             print(f"Successfully sent report to Telegram chat {self.chat_id}")
         except Exception as e:
             print(f"Failed to send report to Telegram. Error: {e}")
-
-    def send_report(self, ticker: str, current_price: float, forecasts: Dict[str, pd.Series], plot_path: str):
-        """
-        Formats and sends the full report. This is the public method.
-        """
-        if not plot_path or not os.path.exists(plot_path):
-            print("Plot file not found. Cannot send report.")
-            return
-
-        report_text = self._format_report(ticker, current_price, forecasts)
-
-        # Run the async send function
-        asyncio.run(self._send_report_async(report_text, plot_path))

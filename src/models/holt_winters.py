@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from statsmodels.tsa.api import ExponentialSmoothing
 from src.models.base_model import BaseModel
 
@@ -33,14 +34,20 @@ class HoltWintersModel(BaseModel):
         print(f"Fitting HoltWintersModel...")
         self.train_series = data
         try:
-            self.model = ExponentialSmoothing(
+            fitted_model = ExponentialSmoothing(
                 data,
                 trend=self.trend,
                 seasonal=self.seasonal,
                 seasonal_periods=self.seasonal_periods,
                 **self.kwargs
             ).fit()
-            print(self.model.summary())
+            # Check if the model fit is valid and doesn't contain NaNs
+            if np.isnan(fitted_model.params).any():
+                print(f"!!! HoltWintersModel fitted with NaN parameters. Discarding model.")
+                self.model = None
+            else:
+                self.model = fitted_model
+                print(self.model.summary())
         except Exception as e:
             print(f"!!! HoltWintersModel failed to fit. Error: {e}")
             self.model = None

@@ -43,7 +43,8 @@ class Reporter:
         ]
 
         for model_name, forecast in forecasts.items():
-            if not forecast.empty:
+            # Robust check for an empty or all-NaN forecast series
+            if not forecast.empty and not forecast.isnull().all():
                 pred_1d = forecast.iloc[0]
                 pred_7d = forecast.iloc[6] if len(forecast) > 6 else forecast.iloc[-1]
                 pred_30d = forecast.iloc[29] if len(forecast) > 29 else forecast.iloc[-1]

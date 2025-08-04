@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 from statsmodels.tsa.arima.model import ARIMA
 from src.models.base_model import BaseModel
 
@@ -29,18 +28,8 @@ class ArimaModel(BaseModel):
         """
         print(f"Fitting ArimaModel with order {self.order}...")
         self.train_series = data
-        try:
-            fitted_model = ARIMA(data, order=self.order, **self.kwargs).fit()
-            # Check if the model fit is valid and doesn't contain NaNs
-            if np.isnan(fitted_model.params).any():
-                print(f"!!! ArimaModel fitted with NaN parameters. Discarding model.")
-                self.model = None
-            else:
-                self.model = fitted_model
-                print(self.model.summary())
-        except Exception as e:
-            print(f"!!! ArimaModel failed to fit. Error: {e}")
-            self.model = None
+        self.model = ARIMA(data, order=self.order, **self.kwargs).fit()
+        print(self.model.summary())
 
     def predict(self, n_periods: int) -> pd.Series:
         """

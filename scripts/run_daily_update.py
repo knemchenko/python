@@ -15,6 +15,8 @@ from src.data_loader import DataLoader
 from src.predictor import Predictor
 from src.visualizer import Visualizer
 from src.reporter import Reporter
+from src.history_manager import HistoryManager
+from src.evaluator import Evaluator
 from src import config
 
 async def main():
@@ -47,25 +49,38 @@ async def main():
                 continue
 
             # 2. Generate new forecasts
-            print(f"\n[Step 2/4] Generating new forecasts for {ticker}...")
+            print(f"\n[Step 2/5] Generating new forecasts for {ticker}...")
             predictor = Predictor(ticker=ticker)
             forecasts = predictor.update_and_predict(full_data=data_df['Close'], n_periods=30)
 
-            # 3. Create visualization
-            print(f"\n[Step 3/4] Creating visualization for {ticker}...")
+            # 3. Save the new forecasts to history
+            print(f"\n[Step 3/6] Saving forecasts for {ticker}...")
+            history_manager = HistoryManager(ticker=ticker)
+            history_manager.save_forecasts(forecasts)
+
+            # 4. Evaluate historical accuracy
+            print(f"\n[Step 4/6] Evaluating historical accuracy for {ticker}...")
+            evaluator = Evaluator(ticker=ticker, actual_data=data_df['Close'])
+            accuracy_results = evaluator.calculate_accuracy()
+
+            # 5. Create visualization
+            print(f"\n[Step 5/6] Creating visualization for {ticker}...")
+            forecast_history = history_manager.load_forecast_history()
             plot_path = visualizer.create_plot(
                 ticker=ticker,
                 historical_data=data_df['Close'],
-                forecasts=forecasts
+                forecasts=forecasts,
+                forecast_history=forecast_history
             )
 
-            # 4. Send report
-            print(f"\n[Step 4/4] Sending report for {ticker}...")
+            # 6. Send report
+            print(f"\n[Step 6/6] Sending report for {ticker}...")
             latest_price = data_df['Close'].iloc[-1]
             await reporter.send_report(
                 ticker=ticker,
                 current_price=latest_price,
                 forecasts=forecasts,
+                accuracy_results=accuracy_results,
                 plot_path=plot_path
             )
 

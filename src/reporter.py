@@ -23,7 +23,7 @@ class Reporter:
         self.bot = Bot(token=config.TELEGRAM_TOKEN)
         self.chat_id = config.TELEGRAM_CHAT_ID
 
-    def _format_report(self, ticker: str, current_price: float, forecasts: Dict[str, pd.Series]) -> str:
+    def _format_report(self, ticker: str, current_price: float, forecasts: Dict[str, pd.Series], accuracy_results: Dict) -> str:
         """
         Formats the textual part of the report.
 
@@ -31,6 +31,7 @@ class Reporter:
             ticker (str): The ticker symbol.
             current_price (float): The latest actual price.
             forecasts (Dict[str, pd.Series]): The forecasts from the models.
+            accuracy_results (Dict): A dictionary with historical accuracy metrics.
 
         Returns:
             str: A Markdown-formatted string for the report.
@@ -56,12 +57,22 @@ class Reporter:
             else:
                 report_lines.append(f"*- {model_name}:* `Forecast failed`")
 
-        # Note: Historical accuracy part is omitted as per the implementation plan.
-        # It can be added later by storing and retrieving past forecasts.
+        # Add historical accuracy table
+        if accuracy_results:
+            report_lines.append("\n---")
+            report_lines.append("*Historical Accuracy*")
+            # Using Markdown code block for a table-like structure
+            header = f"`{'h':<4} | {'RMSE':<6} | {'MAPE':<8}`"
+            divider = "`" + "-"*25 + "`"
+            report_lines.append(header)
+            report_lines.append(divider)
+            for horizon, metrics in accuracy_results.items():
+                line = f"`{horizon:<4} | {metrics['RMSE']:<6.2f} | {metrics['MAPE']:<7.2f}%`"
+                report_lines.append(line)
 
         return "\n".join(report_lines)
 
-    async def send_report(self, ticker: str, current_price: float, forecasts: Dict[str, pd.Series], plot_path: str):
+    async def send_report(self, ticker: str, current_price: float, forecasts: Dict[str, pd.Series], accuracy_results: Dict, plot_path: str):
         """
         Formats and sends the full report. This is now an async method.
         """
@@ -69,7 +80,7 @@ class Reporter:
             print("Plot file not found. Cannot send report.")
             return
 
-        report_text = self._format_report(ticker, current_price, forecasts)
+        report_text = self._format_report(ticker, current_price, forecasts, accuracy_results)
 
         try:
             with open(plot_path, 'rb') as photo:

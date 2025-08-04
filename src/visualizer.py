@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import os
 from typing import Dict
 from src import config
+from src.history_manager import HistoryManager
+from datetime import datetime, timedelta
 
 class Visualizer:
     """
@@ -17,15 +19,16 @@ class Visualizer:
         if not os.path.exists(self.data_dir):
             os.makedirs(self.data_dir)
 
-    def create_plot(self, ticker: str, historical_data: pd.Series, forecasts: Dict[str, pd.Series]) -> str:
+    def create_plot(self, ticker: str, historical_data: pd.Series, forecasts: Dict[str, pd.Series], forecast_history: pd.DataFrame) -> str:
         """
-        Creates a plot showing the last 30 days of actual prices and the next
-        30 days of forecasted prices.
+        Creates a plot showing the last 30 days of actual prices, the next
+        30 days of forecasted prices, and historical "spaghetti" forecasts.
 
         Args:
             ticker (str): The ticker symbol.
             historical_data (pd.Series): The full series of historical prices.
-            forecasts (Dict[str, pd.Series]): A dictionary of forecasts from the models.
+            forecasts (Dict[str, pd.Series]): A dictionary of new forecasts from the models.
+            forecast_history (pd.DataFrame): A DataFrame of historical forecasts.
 
         Returns:
             str: The file path of the saved plot image.
@@ -45,7 +48,21 @@ class Visualizer:
         # Plot the historical data
         ax.plot(last_30_days_actual.index, last_30_days_actual.values, color='gray', marker='o', linestyle='-', label='Actual (Last 30 days)')
 
-        # 2. Plot forecast data, ensuring continuity
+        # 2. Plot historical "spaghetti" forecasts
+        if not forecast_history.empty:
+            today = datetime.now().date()
+            for days_ago in [1, 7, 14, 30]:
+                past_forecast_date = today - timedelta(days=days_ago)
+                hist_forecast = forecast_history[forecast_history['forecast_date'].dt.date == past_forecast_date]
+                if not hist_forecast.empty:
+                    # Plot each model's historical forecast
+                    for model_name, group in hist_forecast.groupby('model_name'):
+                        group = group.sort_values('target_date')
+                        ax.plot(group['target_date'], group['predicted_price'], color='grey', linestyle=':', lw=1,
+                                label=f'Forecast from {past_forecast_date.strftime("%Y-%m-%d")} ({model_name})' if 'historical_legend_added' not in locals() else "")
+                        locals()['historical_legend_added'] = True # Add legend only once
+
+        # 3. Plot future forecast data, ensuring continuity
         end_date_forecast = last_date # Initialize with last historical date
         for model_name, forecast in forecasts.items():
             if not forecast.empty:
@@ -59,7 +76,7 @@ class Visualizer:
                 if continuous_forecast.index[-1] > end_date_forecast:
                     end_date_forecast = continuous_forecast.index[-1]
 
-        # 3. Add vertical line separator
+        # 4. Add vertical line separator
         ax.axvline(last_date, color='black', linestyle='--', lw=2, label='Forecast Horizon')
 
         # 4. Formatting and setting explicit limits

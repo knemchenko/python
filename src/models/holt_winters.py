@@ -54,12 +54,13 @@ class HoltWintersModel(BaseModel):
         if self.model is None:
             raise RuntimeError("The model has not been fitted yet. Call fit() first.")
 
-        # The forecast method in statsmodels handles the future index automatically
-        forecast = self.model.forecast(n_periods)
+        # The forecast method can return integer indices if the frequency is not found
+        forecast_values = self.model.forecast(n_periods)
 
-        forecast_series = pd.Series(forecast, name='forecast')
+        # Create a proper DatetimeIndex to avoid issues
+        last_date = self.train_series.index[-1]
+        future_index = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=n_periods, freq='B')
 
-        # Ensure the index has the correct name
-        forecast_series.index.name = 'Date'
+        forecast_series = pd.Series(forecast_values, index=future_index, name='forecast')
 
         return forecast_series

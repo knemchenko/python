@@ -77,8 +77,10 @@ class Visualizer:
 
         # 5. Save the plot
         plot_path = os.path.join(self.data_dir, f"{ticker}_forecast.jpg")
-        plt.savefig(plot_path, dpi=150)
-        plt.close(fig)
+        if config.SAVE_PLOTS_TO_DISK:
+            plt.savefig(plot_path, dpi=150)
+            print(f"Forecast plot saved to {plot_path}")
 
-        print(f"Forecast plot saved to {plot_path}")
+        plt.close(fig) # Close the figure to free up memory
+
         return plot_path

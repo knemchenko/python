@@ -44,10 +44,13 @@ class ArimaModel(BaseModel):
         if self.model is None:
             raise RuntimeError("The model has not been fitted yet. Call fit() first.")
 
-        # The forecast method handles the future index automatically if no start/end is given
-        forecast = self.model.forecast(steps=n_periods)
+        # The forecast method can return integer indices if the frequency is not found
+        forecast_values = self.model.forecast(steps=n_periods)
 
-        forecast_series = pd.Series(forecast, name='forecast')
-        forecast_series.index.name = 'Date'
+        # Create a proper DatetimeIndex to avoid issues
+        last_date = self.train_series.index[-1]
+        future_index = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=n_periods, freq='B')
+
+        forecast_series = pd.Series(forecast_values, index=future_index, name='forecast')
 
         return forecast_series

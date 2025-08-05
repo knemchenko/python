@@ -26,10 +26,11 @@ class ArimaModel(BaseModel):
         Args:
             data (pd.Series): Time series data to train on.
         """
-        print(f"Fitting ArimaModel with order {self.order}...")
+        # print(f"Fitting ArimaModel with order {self.order}...") # Silenced for cleaner logs
         self.train_series = data
+        # The 'disp' parameter is removed in newer statsmodels.
+        # We are silencing the summary print for cleaner logs.
         self.model = ARIMA(data, order=self.order, **self.kwargs).fit()
-        print(self.model.summary())
 
     def predict(self, n_periods: int) -> pd.Series:
         """

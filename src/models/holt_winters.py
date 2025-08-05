@@ -39,7 +39,7 @@ class HoltWintersModel(BaseModel):
             seasonal_periods=self.seasonal_periods,
             **self.kwargs
         ).fit()
-        print(self.model.summary())
+        # print(self.model.summary()) # Silenced for cleaner logs
 
     def predict(self, n_periods: int) -> pd.Series:
         """

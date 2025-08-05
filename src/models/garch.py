@@ -39,7 +39,7 @@ class GarchModel(BaseModel):
         # Define an ARMA(1,1)-GARCH(1,1) model. This is a common choice.
         self.model = arch_model(self.returns, vol='Garch', p=self.p, q=self.q, mean='ARX', lags=1, dist='Normal')
         self.fitted_model = self.model.fit(disp='off')
-        print(self.fitted_model.summary())
+        # print(self.fitted_model.summary()) # Silenced for cleaner logs
 
     def predict(self, n_periods: int) -> pd.Series:
         """

@@ -37,10 +37,13 @@ def generate_signals(
 
     for horizon, r_hat in ensemble_r_hat.items():
         # --- 2. Confidence Filter (Sigma Threshold) ---
-        if horizon not in sigma_dict:
+        # Ensure horizon is treated as an integer for dictionary lookup
+        h_int = int(horizon)
+        if h_int not in sigma_dict:
+            print(f"Warning: Horizon {h_int} not found in sigma_dict. Skipping.")
             continue # Cannot assess confidence without sigma
 
-        sigma = sigma_dict[horizon]
+        sigma = sigma_dict[h_int]
         # The signal is considered confident if the predicted return is greater than a threshold of its own error
         is_confident = abs(r_hat) > (sigma * config.THRESHOLD_SIGMA)
 

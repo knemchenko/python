@@ -72,6 +72,7 @@ async def main():
             # 3. Generate Signals
             print(f"\n[Step 3/5] Generating signals for {ticker}...")
             sigma_dict = _load_sigma_dict(ticker)
+
             signals = generate_signals(
                 ticker=ticker,
                 forecasts=forecasts_data,

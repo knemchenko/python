@@ -29,19 +29,38 @@ class Predictor:
         self.models: List[BaseModel] = joblib.load(self.model_filepath)
         print(f"Successfully loaded {len(self.models)} models for ticker {self.ticker} from {self.model_filepath}")
 
-    def update_and_predict(self, full_data: pd.Series, n_periods: int = 30) -> Dict[str, pd.Series]:
+    def predict_returns(self, forecast: pd.Series, current_price: float) -> pd.Series:
         """
-        Updates the loaded models with the latest data and generates new forecasts.
+        Calculates the predicted returns for each forecast horizon.
+
+        Args:
+            forecast (pd.Series): The time series of price forecasts.
+            current_price (float): The current price (P0).
+
+        Returns:
+            pd.Series: A series of predicted returns (r_hat) for each horizon.
+        """
+        if forecast.empty or current_price == 0:
+            return pd.Series(dtype='float64')
+
+        r_hat = (forecast - current_price) / current_price
+        return r_hat
+
+    def update_and_predict(self, full_data: pd.Series, n_periods: int = 30) -> Dict[str, Dict]:
+        """
+        Updates models, generates forecasts, and calculates predicted returns.
 
         Args:
             full_data (pd.Series): The complete, up-to-date time series data.
             n_periods (int): The number of future periods to forecast.
 
         Returns:
-            Dict[str, pd.Series]: A dictionary where keys are model names and
-                                 values are the forecast Series.
+            Dict[str, Dict]: A dictionary where keys are model names and values are
+                             another dictionary containing 'forecast' and 'r_hat'.
+                             e.g., {'Arima': {'forecast': pd.Series, 'r_hat': pd.Series}}
         """
-        forecasts = {}
+        results = {}
+        current_price = full_data.iloc[-1]
 
         print(f"\n--- Generating forecasts for {self.ticker} for the next {n_periods} days ---")
 
@@ -54,11 +73,20 @@ class Predictor:
 
                 # 2. Generate a new forecast
                 forecast = model.predict(n_periods=n_periods)
-                forecasts[model_name] = forecast
+
+                # 3. Calculate predicted returns
+                r_hat = self.predict_returns(forecast, current_price)
+
+                results[model_name] = {
+                    'forecast': forecast,
+                    'r_hat': r_hat
+                }
 
             except Exception as e:
                 print(f"!!! Failed to update and predict with {model_name}. Error: {e}")
-                # Store an empty series on failure to be handled by the reporter
-                forecasts[model_name] = pd.Series(dtype='float64')
+                results[model_name] = {
+                    'forecast': pd.Series(dtype='float64'),
+                    'r_hat': pd.Series(dtype='float64')
+                }
 
-        return forecasts
+        return results

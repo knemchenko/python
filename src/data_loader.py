@@ -24,14 +24,12 @@ class DataLoader:
         """
         return os.path.join(self.data_dir, f"{ticker}.csv")
 
-    def _fetch_history(self, ticker: str, start: str, end: str) -> pd.DataFrame:
+    def _fetch_history(self, tickers: list, start: str, end: str) -> pd.DataFrame:
         """
-        Fetches historical data for a ticker using the yf.Ticker object.
-        This returns a cleaner dataframe than yf.download for a single ticker.
+        Fetches historical data for a list of tickers.
         """
-        ticker_obj = yf.Ticker(ticker)
-        # Use auto_adjust=True to get adjusted prices and simple column names
-        df = ticker_obj.history(start=start, end=end, auto_adjust=True)
+        # yf.download is better for multiple tickers
+        df = yf.download(tickers, start=start, end=end, auto_adjust=True)
         return df
 
     def load_data(self, ticker: str) -> pd.DataFrame:
@@ -54,37 +52,60 @@ class DataLoader:
 
         if os.path.exists(filepath):
             print(f"Loading cached data for {ticker} from {filepath}")
-            df = pd.read_csv(filepath, index_col='Date', parse_dates=True)
-
-            last_date = df.index.max()
+            main_df = pd.read_csv(filepath, index_col='Date', parse_dates=True)
+            last_date = main_df.index.max()
             start_fetch_date = last_date + timedelta(days=1)
 
             if start_fetch_date.strftime('%Y-%m-%d') < today:
-                print(f"Fetching new data for {ticker} from {start_fetch_date.strftime('%Y-%m-%d')} to {today}")
-                new_data = self._fetch_history(ticker, start=start_fetch_date.strftime('%Y-%m-%d'), end=today)
-
-                if not new_data.empty:
-                    # Append new data and remove potential duplicates
-                    df = pd.concat([df, new_data])
-                    df = df[~df.index.duplicated(keep='last')]
+                print(f"Fetching new data for {ticker} and ^VIX from {start_fetch_date.strftime('%Y-%m-%d')} to {today}")
+                new_data_raw = self._fetch_history([ticker, '^VIX'], start=start_fetch_date.strftime('%Y-%m-%d'), end=today)
+                if not new_data_raw.empty:
+                    # Process and append new data
+                    new_data_processed = self._process_raw_data(new_data_raw, ticker)
+                    main_df = pd.concat([main_df, new_data_processed])
+                    main_df = main_df[~main_df.index.duplicated(keep='last')]
             else:
                 print(f"Data for {ticker} is already up to date.")
-
         else:
             print(f"No cached data found for {ticker}. Fetching all data from {self.start_date}.")
-            df = self._fetch_history(ticker, start=self.start_date, end=today)
+            raw_df = self._fetch_history([ticker, '^VIX'], start=self.start_date, end=today)
+            main_df = self._process_raw_data(raw_df, ticker)
 
-        if df is not None and not df.empty:
-            # Drop columns that are not needed to keep the cache clean
-            df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
-            # Sort index just in case of concatenation issues
-            df.sort_index(inplace=True)
-            # Save the updated data back to cache
-            df.to_csv(filepath, index_label='Date')
+        if main_df is not None and not main_df.empty:
+            main_df.sort_index(inplace=True)
+            main_df.to_csv(filepath, index_label='Date')
             print(f"Data for {ticker} saved to {filepath}")
         else:
             print(f"Could not download any data for {ticker}.")
-            # Return an empty dataframe if nothing could be fetched
             return pd.DataFrame()
+
+        return main_df
+
+    def _process_raw_data(self, raw_df: pd.DataFrame, main_ticker: str) -> pd.DataFrame:
+        """
+        Processes the raw DataFrame from yfinance, combines asset and VIX data,
+        and calculates the volume moving average.
+        """
+        if raw_df.empty:
+            return pd.DataFrame()
+
+        # Extract data for the main ticker
+        df = raw_df['Close'][[main_ticker]].rename(columns={main_ticker: 'Close'})
+        df['Open'] = raw_df['Open'][main_ticker]
+        df['High'] = raw_df['High'][main_ticker]
+        df['Low'] = raw_df['Low'][main_ticker]
+        df['Volume'] = raw_df['Volume'][main_ticker]
+
+        # Extract VIX data
+        df['VIX_Close'] = raw_df['Close']['^VIX']
+
+        # Forward-fill VIX data for non-trading days
+        df['VIX_Close'].fillna(method='ffill', inplace=True)
+
+        # Calculate 30-day moving average of volume
+        df['ma30_volume'] = df['Volume'].rolling(window=30, min_periods=1).mean()
+
+        # Drop rows with NaN values that might have been introduced
+        df.dropna(inplace=True)
 
         return df

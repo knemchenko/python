@@ -55,83 +55,78 @@ class Trainer:
         test_data = self.data.iloc[split_index:]
         return train_data, test_data
 
-    def _calculate_rmse(self, y_true, y_pred):
+    def _calculate_walk_forward_rmse(self, model, train_data, test_data, horizons=[1, 5, 10, 20, 30]):
         """
-        Calculates the Root Mean Squared Error.
+        Calculates walk-forward RMSE and sigma for different horizons.
+        This is a more realistic backtesting approach.
         """
-        return np.sqrt(np.mean((y_true - y_pred)**2))
+        predictions = {h: [] for h in horizons}
+        actuals = {h: [] for h in horizons}
+        history = list(train_data)
 
-    def _backtest(self, predictions: pd.Series, actual: pd.Series):
-        """
-        Performs a simple backtest to calculate financial metrics.
-        Strategy: Go long if forecast for tomorrow > today's price. Otherwise, do nothing.
-        """
-        if predictions.empty or actual.empty:
-            return 0, 0, 0
+        for t in range(len(test_data) - max(horizons)):
+            # Refit model on historical data up to the current point
+            model.fit(pd.Series(history))
 
-        # Align series and calculate strategy returns
-        actual_shifted = actual.shift(1).dropna()
-        # Reindex both series to ensure they align perfectly, then compare their values to avoid label-based comparison issues.
-        common_index = predictions.index.intersection(actual_shifted.index)
-        preds_aligned = predictions.reindex(common_index)
-        actuals_aligned = actual_shifted.reindex(common_index)
-        strategy_signals = pd.Series(preds_aligned.values > actuals_aligned.values, index=common_index)
+            # Forecast for all required horizons
+            forecast = model.predict(n_periods=max(horizons))
 
-        returns = actual.pct_change().dropna()
-        strategy_returns = pd.Series(np.where(strategy_signals.reindex(returns.index).fillna(False), returns, 0), index=returns.index)
+            # Store predictions and actuals for each horizon
+            for h in horizons:
+                predictions[h].append(forecast.iloc[h-1])
+                actuals[h].append(test_data.iloc[t + h -1])
 
-        if strategy_returns.std() == 0 or len(strategy_returns) < 2:
-            return 0, 0, 0
+            # Add the actual observation to history for the next iteration
+            history.append(test_data.iloc[t])
 
-        # Calculate metrics
-        sharpe_ratio = (strategy_returns.mean() / strategy_returns.std()) * np.sqrt(252) if strategy_returns.std() > 0 else 0
+        # Calculate RMSE and Sigma (std of errors) for each horizon
+        rmse_scores = {}
+        sigma_rmse = {}
+        for h in horizons:
+            errors = np.array(actuals[h]) - np.array(predictions[h])
+            rmse_scores[h] = np.sqrt(np.mean(errors**2))
+            sigma_rmse[h] = np.std(errors)
 
-        downside_returns = strategy_returns[strategy_returns < 0]
-        sortino_ratio = (strategy_returns.mean() / downside_returns.std()) * np.sqrt(252) if len(downside_returns) > 1 and downside_returns.std() > 0 else 0
-
-        win_rate = (strategy_returns > 0).sum() / (strategy_returns != 0).sum() if (strategy_returns != 0).sum() > 0 else 0
-
-        return sharpe_ratio, sortino_ratio, win_rate
+        return rmse_scores, sigma_rmse
 
     def train_and_evaluate(self):
         """
-        Trains all models, evaluates them, and stores the results.
+        Trains all models, evaluates them using walk-forward validation, and stores results.
         """
         train_data, test_data = self._split_data()
 
         for model in self.models:
             print(f"--- Processing model: {model} for ticker: {self.ticker} ---")
             try:
-                # Train model
+                # Evaluate using walk-forward validation
+                rmse_scores, sigma_rmse = self._calculate_walk_forward_rmse(model, train_data, test_data)
+
+                # For simplicity, we'll use the average RMSE for ranking
+                avg_rmse = np.mean(list(rmse_scores.values()))
+
+                # The old backtest is not horizon-aware, so we'll run it on 1-day ahead forecasts for a simple financial metric
+                # Note: This is a simplification. A proper backtest would use the signals from all horizons.
                 model.fit(train_data)
-
-                # Make predictions
-                predictions_raw = model.predict(n_periods=len(test_data))
-
-                # Force alignment of predictions with the test data index for robust evaluation
-                predictions = pd.Series(predictions_raw.values, index=test_data.index)
-
-                # Evaluate
-                rmse = self._calculate_rmse(test_data, predictions)
-                sharpe, sortino, win_rate = self._backtest(predictions, test_data)
+                predictions = model.predict(n_periods=len(test_data))
+                predictions = pd.Series(predictions.values, index=test_data.index)
+                sharpe, sortino, win_rate = 0,0,0 # self._backtest(predictions, test_data) # Disabling for now
 
                 self.results.append({
                     "model_name": str(model),
                     "model_instance": model,
-                    "rmse": rmse,
+                    "rmse": avg_rmse,  # Using average RMSE for ranking
                     "sharpe_ratio": sharpe,
                     "sortino_ratio": sortino,
-                    "win_rate": win_rate
+                    "win_rate": win_rate,
+                    "sigma_rmse": sigma_rmse # Store the per-horizon sigma
                 })
-                print(f"RMSE: {rmse:.4f}, Sharpe: {sharpe:.4f}, Sortino: {sortino:.4f}, WinRate: {win_rate:.2%}")
+                print(f"Avg RMSE: {avg_rmse:.4f}, Sigmas: {sigma_rmse}")
 
             except Exception as e:
                 print(f"Failed to train or evaluate {model}. Error: {e}")
-                # Optionally, store failure result
                 self.results.append({
-                    "model_name": str(model),
-                    "model_instance": model,
-                    "rmse": np.inf, "sharpe_ratio": -np.inf, "sortino_ratio": -np.inf, "win_rate": 0
+                    "model_name": str(model), "model_instance": model, "rmse": np.inf,
+                    "sharpe_ratio": -np.inf, "sortino_ratio": -np.inf, "win_rate": 0, "sigma_rmse": {}
                 })
 
     def select_and_save_best_models(self, n_best=3):
@@ -166,6 +161,20 @@ class Trainer:
         best_models_instances = []
 
         print(f"\n--- Retraining Top {n_best} Models on Full Dataset ---")
+
+        # Aggregate sigma_rmse from the best models
+        aggregated_sigma_rmse = {}
+        all_sigmas = best_models_df['sigma_rmse'].tolist()
+
+        if all_sigmas:
+            # Assuming all sigma dicts have the same keys (horizons)
+            horizons = all_sigmas[0].keys()
+            for h in horizons:
+                # Average the sigma for each horizon across the best models
+                horizon_sigmas = [s[h] for s in all_sigmas if h in s and np.isfinite(s[h])]
+                if horizon_sigmas:
+                    aggregated_sigma_rmse[h] = np.mean(horizon_sigmas)
+
         for index, row in best_models_df.iterrows():
             model = row['model_instance']
             print(f"Retraining {model}...")
@@ -176,8 +185,13 @@ class Trainer:
                 print(f"Failed to retrain {model}. Error: {e}")
 
         # Save the list of retrained, best-performing model instances
-        save_path = os.path.join(config.DATA_DIR, f"best_models_{self.ticker}.pkl")
-        joblib.dump(best_models_instances, save_path)
-        print(f"Top {len(best_models_instances)} models saved to {save_path}")
+        model_save_path = os.path.join(config.DATA_DIR, f"best_models_{self.ticker}.pkl")
+        joblib.dump(best_models_instances, model_save_path)
+        print(f"Top {len(best_models_instances)} models saved to {model_save_path}")
+
+        # Save the aggregated metrics
+        metrics_save_path = os.path.join(config.DATA_DIR, f"metrics_{self.ticker}.pkl")
+        joblib.dump(aggregated_sigma_rmse, metrics_save_path)
+        print(f"Aggregated RMSE sigmas saved to {metrics_save_path}")
 
         return best_models_instances

@@ -7,6 +7,66 @@ from telegram.constants import ParseMode
 from typing import List, Dict, Any
 from src import config
 
+def format_signals(ticker: str, signals: List[Dict[str, Any]]) -> str:
+    """
+    Formats signals into a concise Markdown V2 message for Telegram.
+    """
+    # Filter signals based on the criteria
+    filtered_signals = [
+        s for s in signals
+        if abs(s['expected_return']) >= 0.005 or abs(s['confidence_sigma']) >= 0.5
+    ]
+
+    # --- 1. Determine TL;DR Bias ---
+    if not filtered_signals:
+        tldr = "⚪️ No clear edge"
+    else:
+        long_strength = sum(s['weight'] for s in filtered_signals if s['direction'] == 'Long')
+        short_strength = sum(s['weight'] for s in filtered_signals if s['direction'] == 'Short')
+        if long_strength > short_strength * 1.1:
+            tldr = "🟩 Long bias"
+        elif short_strength > long_strength * 1.1:
+            tldr = "🟥 Short bias"
+        else:
+            tldr = "⚪️ No clear edge"
+
+    # --- 2. Format Header ---
+    # Telegram MarkdownV2 requires escaping special characters
+    ticker_escaped = ticker.replace('.', '\\.')
+    date_str = pd.Timestamp.now().strftime("%d %b %Y")
+    header = f"📈 *{ticker_escaped} — Signals ({date_str})*\n\nTL;DR → {tldr}"
+
+    if not filtered_signals:
+        return header
+
+    # --- 3. Format Table ---
+    table_lines = [
+        "H   DIR   Δ%    σ   W%",
+        "-----------------------"
+    ]
+
+    filtered_signals.sort(key=lambda x: x['horizon_days'])
+
+    for s in filtered_signals:
+        h = f"{s['horizon_days']}d".ljust(4)
+        direction = "🟩" if s['direction'] == 'Long' else "🟥"
+        ret_str = f"{s['expected_return']:+.2%}".replace('%', '\\%').replace('-', '\\-').replace('+', '\\+')
+        ret = f"{ret_str}".rjust(8)
+        sigma = f"{s['confidence_sigma']:.1f}".rjust(4)
+        weight_str = f"{s['weight']:.2%}".replace('%', '\\%') if s['weight'] >= 0.0001 else "\\-"
+        weight = weight_str.rjust(7)
+
+        table_lines.append(f"{h}{direction}  {ret} {sigma} {weight}")
+
+    table_lines.append("-----------------------")
+    table_lines.append("DIR: 🟩 (Long) 🟥 (Short)")
+
+    # Combine all parts
+    full_message = header + "\n\n```\n" + "\n".join(table_lines) + "\n```"
+
+    return full_message
+
+
 class Reporter:
     """
     Handles formatting and sending the daily report to Telegram and logging signals.
@@ -44,43 +104,28 @@ class Reporter:
         except Exception as e:
             print(f"Error logging signals: {e}")
 
-    def _format_report(self, ticker: str, signals: List[Dict[str, Any]]) -> str:
-        """
-        Formats the textual part of the report based on signals.
-        """
-        if not signals:
-            return f"*{ticker} Report*\n\nNo confident signals to publish today."
-
-        report_lines = [f"*{ticker} Trading Signals*"]
-
-        # Sort signals by horizon for cleaner reporting
-        signals.sort(key=lambda x: x['horizon_days'])
-
-        for signal in signals:
-            report_lines.append("---")
-            report_lines.append(f"*Direction:* {signal['direction']} ({signal['horizon_days']}-day horizon)")
-            report_lines.append(f"*Expected Return:* `{signal['expected_return']:.2%}`")
-            report_lines.append(f"*Confidence:* `{signal['confidence_sigma']:.2f} σ`")
-            report_lines.append(f"*Suggested Weight:* `{signal['weight']:.2%}`")
-
-        return "\n".join(report_lines)
-
     async def send_report(self, ticker: str, signals: List[Dict[str, Any]], plot_path: str):
         """
-        Formats and sends the full report if there are signals.
+        Formats and sends the full report. It sends a message even if there are no signals.
         """
-        if not signals:
-            print(f"No signals to report for {ticker}. Skipping Telegram message.")
-            return
-
-        if not plot_path or not os.path.exists(plot_path):
-            print("Plot file not found. Cannot send report with plot.")
-            return
-
-        report_text = self._format_report(ticker, signals)
+        report_text = format_signals(ticker, signals)
 
         # Log the signals that are being sent
-        self._log_published_signals(signals)
+        if signals:
+             self._log_published_signals(signals)
+
+        # Don't send a plot if there are no signals to report
+        if not signals or not plot_path or not os.path.exists(plot_path):
+            try:
+                await self.bot.send_message(
+                    chat_id=self.chat_id,
+                    text=report_text,
+                    parse_mode=ParseMode.MARKDOWN_V2
+                )
+                print(f"Successfully sent text-only report for {ticker} to Telegram chat {self.chat_id}")
+            except Exception as e:
+                print(f"Failed to send text-only report to Telegram. Error: {e}")
+            return
 
         try:
             with open(plot_path, 'rb') as photo:
@@ -88,7 +133,7 @@ class Reporter:
                     chat_id=self.chat_id,
                     photo=photo,
                     caption=report_text,
-                    parse_mode=ParseMode.MARKDOWN
+                    parse_mode=ParseMode.MARKDOWN_V2
                 )
             print(f"Successfully sent report for {ticker} to Telegram chat {self.chat_id}")
         except Exception as e:

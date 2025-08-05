@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
 from src import config
+from src.features import FeatureEngineer
 
 class DataLoader:
     """
@@ -13,16 +14,16 @@ class DataLoader:
         """
         Initializes the DataLoader, creating the data directory if it doesn't exist.
         """
-        self.start_date = config.START_DATE
-        self.data_dir = config.DATA_DIR
-        if not os.path.exists(self.data_dir):
-            os.makedirs(self.data_dir)
+        self.start_date = config.DATA_SETTINGS["start_date"]
+        self.prices_path = os.path.join(config.DATA_SETTINGS["data_dir"], config.DATA_SETTINGS["prices_path"])
+        if not os.path.exists(self.prices_path):
+            os.makedirs(self.prices_path)
 
     def _get_cache_filepath(self, ticker: str) -> str:
         """
         Gets the file path for the cached data of a given ticker.
         """
-        return os.path.join(self.data_dir, f"{ticker}.csv")
+        return os.path.join(self.prices_path, f"{ticker}.parquet")
 
     def _fetch_history(self, ticker: str, start: str, end: str) -> pd.DataFrame:
         """
@@ -34,57 +35,61 @@ class DataLoader:
         df = ticker_obj.history(start=start, end=end, auto_adjust=True)
         return df
 
-    def load_data(self, ticker: str) -> pd.DataFrame:
+    def load_data(self, ticker: str, benchmark_ticker: str = None, load_benchmark: bool = False) -> pd.DataFrame:
         """
-        Loads data for a given ticker. It uses a local cache to avoid
-        downloading all data every time. If cached data is found, it only
-        fetches the newer data since the last record.
+        Loads data for a given ticker, enriches it with features, and caches it.
+        Can also load data for a benchmark ticker without adding features to it.
 
         Args:
-            ticker (str): The ticker symbol to load data for (e.g., "AAPL").
+            ticker (str): The primary ticker symbol to load.
+            benchmark_ticker (str, optional): The benchmark ticker for beta calculation.
+            load_benchmark (bool): If True, skips feature engineering. Used for loading benchmark data.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the historical data with
-                          'Date' as the index.
+            pd.DataFrame: DataFrame with historical data and added features.
         """
         filepath = self._get_cache_filepath(ticker)
         today = datetime.now().strftime('%Y-%m-%d')
 
         df = None
+        needs_update = True
 
         if os.path.exists(filepath):
-            print(f"Loading cached data for {ticker} from {filepath}")
-            df = pd.read_csv(filepath, index_col='Date', parse_dates=True)
-
+            df = pd.read_parquet(filepath)
             last_date = df.index.max()
-            start_fetch_date = last_date + timedelta(days=1)
+            if last_date.date() >= (datetime.now() - timedelta(days=1)).date():
+                print(f"Data for {ticker} is already up-to-date.")
+                needs_update = False
 
-            if start_fetch_date.strftime('%Y-%m-%d') < today:
-                print(f"Fetching new data for {ticker} from {start_fetch_date.strftime('%Y-%m-%d')} to {today}")
-                new_data = self._fetch_history(ticker, start=start_fetch_date.strftime('%Y-%m-%d'), end=today)
+        if needs_update:
+            print(f"Fetching or updating data for {ticker}...")
+            full_history = self._fetch_history(ticker, start=self.start_date, end=today)
 
-                if not new_data.empty:
-                    # Append new data and remove potential duplicates
-                    df = pd.concat([df, new_data])
-                    df = df[~df.index.duplicated(keep='last')]
+            if full_history.empty:
+                print(f"Could not download any data for {ticker}.")
+                return pd.DataFrame()
+
+            # Only add features if it's the main asset, not a benchmark being loaded
+            if not load_benchmark:
+                benchmark_df = None
+                if benchmark_ticker:
+                    # Recursively load benchmark data, but without adding features to it
+                    benchmark_df = self.load_data(benchmark_ticker, load_benchmark=True)
+
+                # Add features
+                feature_engineer = FeatureEngineer()
+                df = feature_engineer.add_features(asset_df=full_history, benchmark_df=benchmark_df)
             else:
-                print(f"Data for {ticker} is already up to date.")
+                df = full_history
 
-        else:
-            print(f"No cached data found for {ticker}. Fetching all data from {self.start_date}.")
-            df = self._fetch_history(ticker, start=self.start_date, end=today)
-
-        if df is not None and not df.empty:
             # Drop columns that are not needed to keep the cache clean
-            df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
-            # Sort index just in case of concatenation issues
+            # Note: FeatureEngineer adds columns in lowercase, so we select capitalized versions
+            required_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
+            feature_cols = [col for col in df.columns if col not in required_cols]
+            df = df[required_cols + feature_cols]
+
             df.sort_index(inplace=True)
-            # Save the updated data back to cache
-            df.to_csv(filepath, index_label='Date')
-            print(f"Data for {ticker} saved to {filepath}")
-        else:
-            print(f"Could not download any data for {ticker}.")
-            # Return an empty dataframe if nothing could be fetched
-            return pd.DataFrame()
+            df.to_parquet(filepath)
+            print(f"Data for {ticker} (with features) saved to {filepath}")
 
         return df

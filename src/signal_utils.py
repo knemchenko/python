@@ -35,15 +35,21 @@ def generate_signals(
 
     ensemble_r_hat = pd.concat(all_r_hats, axis=1).mean(axis=1)
 
-    for horizon, r_hat in ensemble_r_hat.items():
-        # --- 2. Confidence Filter (Sigma Threshold) ---
-        # Ensure horizon is treated as an integer for dictionary lookup
-        h_int = int(horizon)
-        if h_int not in sigma_dict:
-            print(f"Warning: Horizon {h_int} not found in sigma_dict. Skipping.")
-            continue # Cannot assess confidence without sigma
+    # Define the horizons we are interested in, to match the trainer
+    horizons_to_check = [1, 5, 10, 20, 30]
 
-        sigma = sigma_dict[h_int]
+    for h in horizons_to_check:
+        # Check if the horizon exists in the sigma dictionary
+        if h not in sigma_dict:
+            continue
+
+        # Check if the forecast is long enough for this horizon
+        if len(ensemble_r_hat) < h:
+            continue
+
+        # Get the return and sigma for the specific horizon `h`
+        r_hat = ensemble_r_hat.iloc[h - 1]
+        sigma = sigma_dict[h]
         # The signal is considered confident if the predicted return is greater than a threshold of its own error
         is_confident = abs(r_hat) > (sigma * config.THRESHOLD_SIGMA)
 
@@ -74,7 +80,7 @@ def generate_signals(
             signals.append({
                 "ticker": ticker,
                 "timestamp": pd.Timestamp.now(),
-                "horizon_days": horizon,
+                "horizon_days": h,
                 "direction": direction,
                 "expected_return": r_hat,
                 "confidence_sigma": abs(r_hat) / sigma if sigma > 0 else 0,

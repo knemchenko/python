@@ -31,7 +31,7 @@ class XGBoostModel(BaseModel):
         )
         self.train_series = None
 
-    def _create_features(self, data: pd.Series) -> Tuple[pd.DataFrame, pd.Series]:
+    def _create_features(self, data: pd.S-er-ies) -> Tuple[pd.DataFrame, pd.Series]:
         """
         Creates a feature matrix (X) and target vector (y) from time series data.
         """

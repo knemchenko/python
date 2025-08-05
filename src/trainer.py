@@ -62,11 +62,11 @@ class Trainer:
         """
         predictions = {h: [] for h in horizons}
         actuals = {h: [] for h in horizons}
-        history = list(train_data)
+        history = train_data.copy()
 
         for t in range(len(test_data) - max(horizons)):
             # Refit model on historical data up to the current point
-            model.fit(pd.Series(history))
+            model.fit(history)
 
             # Forecast for all required horizons
             forecast = model.predict(n_periods=max(horizons))
@@ -74,10 +74,11 @@ class Trainer:
             # Store predictions and actuals for each horizon
             for h in horizons:
                 predictions[h].append(forecast.iloc[h-1])
-                actuals[h].append(test_data.iloc[t + h -1])
+                actuals[h].append(test_data.iloc[t + h - 1])
 
             # Add the actual observation to history for the next iteration
-            history.append(test_data.iloc[t])
+            new_observation = test_data.iloc[[t]]
+            history = pd.concat([history, new_observation])
 
         # Calculate RMSE and Sigma (std of errors) for each horizon
         rmse_scores = {}

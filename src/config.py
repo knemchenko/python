@@ -10,8 +10,8 @@ START_DATE = "2018-01-01"
 DATA_DIR = "data"
 
 # Telegram Bot Configuration
-TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"  # Replace with your bot token
-TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID"  # Replace with your channel/chat ID
+TELEGRAM_TOKEN = "436150352:AAEqYq-cUO93C8cZqgvbyz6gl-nV7QZsuZU"  # Replace with your bot token
+TELEGRAM_CHAT_ID = "58623777"  # Replace with your channel/chat ID
 
 # Plotting Configuration
 SAVE_PLOTS_TO_DISK = True  # Whether to save the forecast plots locally

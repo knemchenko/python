@@ -22,9 +22,11 @@ def format_signals_to_table(signals: List[Dict[str, Any]]) -> (str, bool):
         return "", False
 
     # --- Format Table ---
+    # Using a non-special character for the separator
+    separator = '—' * 23
     table_lines = [
-        "H   DIR   Δ%    σ   W%",
-        "-----------------------"
+        "`H   DIR   Δ%    σ   W%`",
+        f"`{separator}`"
     ]
 
     filtered_signals.sort(key=lambda x: x['horizon_days'])
@@ -33,17 +35,10 @@ def format_signals_to_table(signals: List[Dict[str, Any]]) -> (str, bool):
         h = f"{s['horizon_days']}d".ljust(4)
         direction = "🟩" if s['direction'] == 'Long' else "🟥"
 
-        # Escape characters for MarkdownV2
-        ret_val = s['expected_return'] * 100
-        ret_str = f"{ret_val:+.2f}".replace('-', '\\-').replace('+', '\\+').replace('.', '\\.')
-        ret = f"{ret_str}".rjust(6)
-
-        sigma_str = f"{s['confidence_sigma']:.1f}".replace('.', '\\.')
-        sigma = sigma_str.rjust(4)
-
-        weight_val = s['weight'] * 100
-        weight_str = f"{weight_val:.2f}".replace('.', '\\.') if s['weight'] >= 0.0001 else "\\-"
-        weight = weight_str.rjust(5)
+        # No need to escape characters inside a code block
+        ret = f"{s['expected_return'] * 100:+.2f}".rjust(6)
+        sigma = f"{s['confidence_sigma']:.1f}".rjust(4)
+        weight = f"{s['weight'] * 100:.2f}".rjust(5) if s['weight'] >= 0.0001 else "-".rjust(5)
 
         table_lines.append(f"`{h}{direction}  {ret} {sigma} {weight}`")
 
@@ -103,12 +98,15 @@ class Reporter:
              self._log_published_signals(signals)
 
         try:
+            # Use a different parse mode if the message is just the table
+            parse_mode = ParseMode.MARKDOWN_V2 if "TL;DR" in report_text else ParseMode.HTML
+
             with open(plot_path, 'rb') as photo:
                 await self.bot.send_photo(
                     chat_id=self.chat_id,
                     photo=photo,
-                    caption=report_text,
-                    parse_mode=ParseMode.MARKDOWN_V2
+                    caption=f"<b>{ticker}</b>\n<pre>{report_text}</pre>",
+                    parse_mode=ParseMode.HTML
                 )
             print(f"Successfully sent report for {ticker} to Telegram chat {self.chat_id}")
         except Exception as e:

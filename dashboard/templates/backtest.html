@@ -43,24 +43,28 @@
 </div>
 
 <script>
-// Placeholder for Plotly heatmap generation
 document.addEventListener('DOMContentLoaded', function() {
     const heatmapDiv = document.getElementById('heatmap-chart');
-    const data = [{
-        z: [[0.8, 1.2, 0.5], [1.5, 0.9, 1.8], [0.3, 2.1, 1.1]],
-        x: ['1d', '5d', '20d'],
-        y: ['AAPL', 'MSFT', 'CSPX.L'],
-        type: 'heatmap',
-        colorscale: 'Viridis'
-    }];
 
-    const layout = {
-        title: 'Sharpe Ratio Heatmap',
-        xaxis: { title: 'Horizon' },
-        yaxis: { title: 'Ticker' }
-    };
+    fetch("{{ url_for('api_sharpe_heatmap') }}")
+        .then(response => response.json())
+        .then(data => {
+            const plotData = [{
+                z: data.z,
+                x: data.x,
+                y: data.y,
+                type: 'heatmap',
+                colorscale: 'Viridis'
+            }];
 
-    Plotly.newPlot(heatmapDiv, data, layout, {responsive: true});
+            const layout = {
+                title: 'Sharpe Ratio Heatmap',
+                xaxis: { title: 'Horizon (Days)' },
+                yaxis: { title: 'Ticker' }
+            };
+
+            Plotly.newPlot(heatmapDiv, plotData, layout, {responsive: true});
+        });
 });
 </script>
 {% endblock %}

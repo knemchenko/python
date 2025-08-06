@@ -12,3 +12,10 @@ joblib
 pmdarima
 torch
 darts
+tqdm
+# Dashboard dependencies
+Flask
+gunicorn
+plotly
+htmx
+pyarrow

@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Live Trading Signals</h2>
+
+    <!-- Filters -->
+    <form hx-get="{{ url_for('api_signals') }}" hx-target="#signals-table-body" hx-trigger="change, keyup delay:500ms" class="row g-3 align-items-center mb-4 p-3 bg-light rounded">
+        <div class="col-md-4">
+            <label for="tickerFilter" class="form-label">Ticker</label>
+            <input type="text" id="tickerFilter" name="ticker" class="form-control" placeholder="e.g., AAPL">
+        </div>
+        <div class="col-md-3">
+            <label for="dirFilter" class="form-label">Direction</label>
+            <select id="dirFilter" name="dir" class="form-select">
+                <option value="">All</option>
+                <option value="Long">Long</option>
+                <option value="Short">Short</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="horizonFilter" class="form-label">Max Horizon (days)</label>
+            <input type="number" id="horizonFilter" name="h" class="form-control" placeholder="e.g., 30">
+        </div>
+    </form>
+
+    <!-- Signals Table -->
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <table class="table table-sm table-hover">
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Horizon</th>
+                        <th>Direction</th>
+                        <th>Expected Return</th>
+                        <th>Weight</th>
+                        <th>Confidence (σ)</th>
+                    </tr>
+                </thead>
+                <tbody id="signals-table-body" hx-get="{{ url_for('api_signals') }}" hx-trigger="load, every 60s">
+                    <!-- Initial content will be loaded here by HTMX -->
+                    <tr><td colspan="6" class="text-center">Loading signals...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

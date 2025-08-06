@@ -1,0 +1,67 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4" hx-get="{{ url_for('api_metrics') }}" hx-trigger="load, every 30s" hx-swap="innerHTML">
+        <!-- This content will be replaced by the partial template from /api/metrics -->
+        {% include 'partials/metrics_cards.html' %}
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Equity Curve vs SPY</h5>
+                    <div id="equity-chart" style="height: 450px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const equityChartDiv = document.getElementById('equity-chart');
+
+    function fetchAndDrawChart() {
+        fetch("{{ url_for('api_equity') }}")
+            .then(response => response.json())
+            .then(data => {
+                const trace1 = {
+                    x: data.dates,
+                    y: data.equity,
+                    mode: 'lines',
+                    name: 'Strategy Equity'
+                };
+
+                const trace2 = {
+                    x: data.dates,
+                    y: data.spy_equity,
+                    mode: 'lines',
+                    name: 'SPY Equity'
+                };
+
+                const layout = {
+                    margin: { t: 0, b: 40, l: 40, r: 20 },
+                    xaxis: { title: 'Date' },
+                    yaxis: { title: 'Equity' },
+                    legend: {
+                        x: 0.01,
+                        y: 0.99,
+                        xanchor: 'left',
+                        yanchor: 'top'
+                    }
+                };
+
+                Plotly.newPlot(equityChartDiv, [trace1, trace2], layout, {responsive: true});
+            });
+    }
+
+    // Initial draw
+    fetchAndDrawChart();
+
+    // Optionally, refresh the chart periodically
+    // setInterval(fetchAndDrawChart, 60000);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DASH_USER=admin
+      - DASH_PWD=supersecret
+      - FLASK_APP=dashboard.app:app
+    restart: unless-stopped

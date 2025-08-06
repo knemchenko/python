@@ -1,0 +1,66 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Backtest & Performance</h2>
+
+    <div class="row">
+        <!-- Sharpe Ratio Heatmap -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Sharpe Ratio by Ticker & Horizon</h5>
+                    <div id="heatmap-chart" style="height: 400px;"></div>
+                    <p class="small text-muted mt-2">Heatmap showing the historical Sharpe Ratio for each combination of ticker and forecast horizon.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- P/L by Year Table -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">P/L by Year</h5>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Year</th>
+                                <th>Total P/L</th>
+                                <th>Win Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Data will be populated here -->
+                            <tr><td>2022</td><td class="text-success">+15.8%</td><td>68%</td></tr>
+                            <tr><td>2023</td><td class="text-success">+25.2%</td><td>71%</td></tr>
+                            <tr><td>2024</td><td class="text-danger">-5.1%</td><td>48%</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Placeholder for Plotly heatmap generation
+document.addEventListener('DOMContentLoaded', function() {
+    const heatmapDiv = document.getElementById('heatmap-chart');
+    const data = [{
+        z: [[0.8, 1.2, 0.5], [1.5, 0.9, 1.8], [0.3, 2.1, 1.1]],
+        x: ['1d', '5d', '20d'],
+        y: ['AAPL', 'MSFT', 'CSPX.L'],
+        type: 'heatmap',
+        colorscale: 'Viridis'
+    }];
+
+    const layout = {
+        title: 'Sharpe Ratio Heatmap',
+        xaxis: { title: 'Horizon' },
+        yaxis: { title: 'Ticker' }
+    };
+
+    Plotly.newPlot(heatmapDiv, data, layout, {responsive: true});
+});
+</script>
+{% endblock %}

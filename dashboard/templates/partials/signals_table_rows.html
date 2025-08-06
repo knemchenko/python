@@ -1,0 +1,20 @@
+{% for signal in signals %}
+<tr>
+    <td>{{ signal.ticker }}</td>
+    <td>{{ signal.horizon_days }}d</td>
+    <td>
+        {% if signal.direction == 'Long' %}
+            <span class="badge bg-success">Long</span>
+        {% else %}
+            <span class="badge bg-danger">Short</span>
+        {% endif %}
+    </td>
+    <td>{{ '%.2f'|format(signal.expected_return * 100) }}%</td>
+    <td>{{ '%.2f'|format(signal.weight * 100) }}%</td>
+    <td>{{ '%.2f'|format(signal.confidence_sigma) }}</td>
+</tr>
+{% else %}
+<tr>
+    <td colspan="6" class="text-center text-muted">No signals match the current filters.</td>
+</tr>
+{% endfor %}

@@ -101,6 +101,23 @@ KELLY_CAP = 0.25
     python scripts/backfill_history.py
     ```
 
+## Dashboard
+
+This project includes a Flask-based web dashboard for monitoring signals, performance, and system status.
+
+### Running with Docker
+
+The easiest way to run the dashboard is with Docker Compose.
+
+1.  **Build and Run the Container:**
+    ```bash
+    docker-compose up --build
+    ```
+
+2.  Open your browser and navigate to `http://localhost:5001`.
+
+3.  Login with the credentials specified in your `docker-compose.yml` or environment variables (default: `admin`/`supersecret`).
+
 ## Data Schema
 
 For details on the data schemas for `forecast_history.parquet` and `metrics.csv`, please see the `docs/migrations.md` file.

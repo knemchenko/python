@@ -1,0 +1,10 @@
+{% for m in metrics %}
+<div class="col-md-3">
+    <div class="card shadow-sm mb-3">
+        <div class="card-body text-center">
+            <h4 class="card-title">{{ m.value }}</h4>
+            <p class="card-text text-muted small">{{ m.label }}</p>
+        </div>
+    </div>
+</div>
+{% endfor %}

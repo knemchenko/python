@@ -1,0 +1,91 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Ticker Profile: <span class="text-primary">{{ ticker }}</span></h2>
+
+    <div class="row">
+        <!-- Main Price Chart -->
+        <div class="col-lg-8 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Price and Forecasts</h5>
+                    <div id="price-chart" style="height: 400px;"></div>
+                    <p class="small text-muted mt-2">Interactive chart showing historical prices and all forecast points.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metrics Table -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Accuracy Metrics</h5>
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Horizon</th>
+                                <th>RMSE</th>
+                                <th>Sigma</th>
+                                <th>Hit Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Data will be populated here -->
+                            <tr><td>1d</td><td>5.23</td><td>2.1</td><td>65%</td></tr>
+                            <tr><td>5d</td><td>12.8</td><td>5.5</td><td>61%</td></tr>
+                            <tr><td>30d</td><td>35.1</td><td>15.2</td><td>58%</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trades Statistics Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">Trade Statistics for {{ ticker }}</h5>
+                     <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Direction</th>
+                                <th>Horizon</th>
+                                <th>Entry Price</th>
+                                <th>Exit Price</th>
+                                <th>P/L</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Data will be populated here -->
+                             <tr><td>2023-07-15</td><td>Long</td><td>5d</td><td>150.21</td><td>155.87</td><td class="text-success">+3.77%</td></tr>
+                             <tr><td>2023-07-20</td><td>Short</td><td>10d</td><td>156.10</td><td>154.02</td><td class="text-success">+1.33%</td></tr>
+                             <tr><td>2023-08-01</td><td>Long</td><td>20d</td><td>158.00</td><td>155.50</td><td class="text-danger">-1.58%</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Placeholder for Plotly chart generation
+document.addEventListener('DOMContentLoaded', function() {
+    const priceChartDiv = document.getElementById('price-chart');
+    // In a real implementation, you would fetch data for the specific ticker
+    // and draw the chart here.
+    Plotly.newPlot(priceChartDiv, [{
+        x: [1, 2, 3, 4],
+        y: [10, 15, 13, 17],
+        mode: 'lines',
+        name: 'Price'
+    }], {
+        title: 'Price Chart for {{ ticker }}'
+    });
+});
+</script>
+{% endblock %}

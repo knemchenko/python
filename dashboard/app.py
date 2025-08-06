@@ -1,8 +1,9 @@
 import os
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, Response
 
 from dashboard.config import Config
 from dashboard.data_access import get_latest_metrics, get_equity_curve, get_todays_signals, get_sharpe_heatmap_data
+import pandas as pd
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -45,11 +46,7 @@ def api_metrics():
 @app.route('/api/equity')
 def api_equity():
     equity_data = get_equity_curve()
-    return jsonify({
-        "dates": equity_data['date'].dt.strftime('%Y-%m-%d').tolist(),
-        "equity": equity_data['equity'].tolist(),
-        "spy_equity": equity_data['spy_equity'].tolist()
-    })
+    return Response(equity_data.to_string(), mimetype='text/plain')
 
 @app.route('/api/signals')
 def api_signals():
@@ -86,7 +83,6 @@ def api_force_retrain():
 
 @app.route('/api/clean_cache', methods=['POST'])
 def api_clean_cache():
-    # Placeholder logic
     return '<div class="alert alert-info" role="alert">Cache cleaning not implemented yet.</div>'
 
 @app.route('/api/sharpe_heatmap')

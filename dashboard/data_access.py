@@ -15,9 +15,11 @@ HISTORY_PARQUET = os.path.join(Config.DATA_DIR, "forecast_history.parquet")
 def get_historical_signals():
     """Loads and caches the complete history of signals."""
     if not os.path.exists(HISTORY_PARQUET):
+        print("[DEBUG] History file not found.")
         return pd.DataFrame()
     df = pd.read_parquet(HISTORY_PARQUET)
     df['timestamp'] = pd.to_datetime(df['timestamp'])
+    print(f"[DEBUG] Loaded history file. Shape: {df.shape}")
     return df
 
 def get_latest_metrics():
@@ -32,7 +34,6 @@ def get_todays_signals():
     df = get_historical_signals()
     if df.empty:
         return pd.DataFrame()
-    # Get the latest timestamp for each ticker and return signals for that day
     latest_signals = df.loc[df.groupby('ticker')['timestamp'].idxmax()]
     return latest_signals
 
@@ -44,27 +45,21 @@ def get_spy_data(start_date, end_date):
 def get_equity_curve():
     """
     Calculates a simulated equity curve based on historical signals.
-    This is a simplified simulation and does not account for transaction costs, etc.
     """
     signals = get_historical_signals()
     if signals.empty:
+        print("[DEBUG] Equity curve: No signals found.")
         return pd.DataFrame(columns=['date', 'equity', 'spy_equity'])
 
-    # --- Simulate Strategy P/L ---
-    # We assume we invest a fixed amount per signal, weighted by the signal weight.
-    # The return is the expected_return, realized over the horizon.
-    # This is a simplification; a proper backtest would use actual price data.
     signals['pnl'] = signals['expected_return'] * signals['weight'] * np.where(signals['direction'] == 'Long', 1, -1)
+    print(f"[DEBUG] PNL calculated. Example PNL values:\n{signals['pnl'].head()}")
 
-    # Create a daily P/L series
     daily_pnl = signals.groupby('timestamp')['pnl'].sum()
 
-    # Calculate cumulative equity
     initial_capital = 100.0
     equity_curve = (1 + daily_pnl).cumprod() * initial_capital
     equity_curve.name = "equity"
 
-    # --- Get SPY Benchmark ---
     start_date = equity_curve.index.min()
     end_date = equity_curve.index.max()
     spy_data = get_spy_data(start_date, end_date)
@@ -74,7 +69,6 @@ def get_equity_curve():
         spy_equity = (1 + spy_returns).cumprod() * initial_capital
         spy_equity.name = "spy_equity"
 
-        # Combine into a single DataFrame
         combined = pd.concat([equity_curve, spy_equity], axis=1).fillna(method='ffill').reset_index()
         combined.rename(columns={'timestamp': 'date'}, inplace=True)
     else:
@@ -82,6 +76,8 @@ def get_equity_curve():
         combined.rename(columns={'timestamp': 'date'}, inplace=True)
         combined['spy_equity'] = np.nan
 
+    print(f"[DEBUG] Final equity curve data shape: {combined.shape}")
+    print(f"[DEBUG] Equity curve head:\n{combined.head()}")
     return combined
 
 def get_sharpe_heatmap_data():
@@ -90,14 +86,14 @@ def get_sharpe_heatmap_data():
     if signals.empty:
         return {}
 
-    # Simulate P/L as in equity curve
     signals['pnl'] = signals['expected_return'] * signals['weight'] * np.where(signals['direction'] == 'Long', 1, -1)
 
     def sharpe(x):
         if x.std() == 0: return 0
-        return (x.mean() / x.std()) * np.sqrt(252) # Annualize
+        return (x.mean() / x.std()) * np.sqrt(252)
 
     heatmap_data = signals.groupby(['ticker', 'horizon_days'])['pnl'].apply(sharpe).unstack().fillna(0)
+    print(f"[DEBUG] Heatmap data:\n{heatmap_data}")
 
     return {
         'x': heatmap_data.columns.tolist(),

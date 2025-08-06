@@ -15,11 +15,9 @@ HISTORY_PARQUET = os.path.join(Config.DATA_DIR, "forecast_history.parquet")
 def get_historical_signals():
     """Loads and caches the complete history of signals."""
     if not os.path.exists(HISTORY_PARQUET):
-        print("[DEBUG] History file not found.")
         return pd.DataFrame()
     df = pd.read_parquet(HISTORY_PARQUET)
     df['timestamp'] = pd.to_datetime(df['timestamp'])
-    print(f"[DEBUG] Loaded history file. Shape: {df.shape}")
     return df
 
 def get_latest_metrics():
@@ -48,11 +46,9 @@ def get_equity_curve():
     """
     signals = get_historical_signals()
     if signals.empty:
-        print("[DEBUG] Equity curve: No signals found.")
         return pd.DataFrame(columns=['date', 'equity', 'spy_equity'])
 
     signals['pnl'] = signals['expected_return'] * signals['weight'] * np.where(signals['direction'] == 'Long', 1, -1)
-    print(f"[DEBUG] PNL calculated. Example PNL values:\n{signals['pnl'].head()}")
 
     daily_pnl = signals.groupby('timestamp')['pnl'].sum()
 
@@ -76,8 +72,6 @@ def get_equity_curve():
         combined.rename(columns={'timestamp': 'date'}, inplace=True)
         combined['spy_equity'] = np.nan
 
-    print(f"[DEBUG] Final equity curve data shape: {combined.shape}")
-    print(f"[DEBUG] Equity curve head:\n{combined.head()}")
     return combined
 
 def get_sharpe_heatmap_data():
@@ -93,7 +87,6 @@ def get_sharpe_heatmap_data():
         return (x.mean() / x.std()) * np.sqrt(252)
 
     heatmap_data = signals.groupby(['ticker', 'horizon_days'])['pnl'].apply(sharpe).unstack().fillna(0)
-    print(f"[DEBUG] Heatmap data:\n{heatmap_data}")
 
     return {
         'x': heatmap_data.columns.tolist(),

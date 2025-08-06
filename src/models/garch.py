@@ -1,6 +1,7 @@
 import pandas as pd
 from arch import arch_model
 from src.models.base_model import BaseModel
+from arch.__future__ import reindexing
 
 class GarchModel(BaseModel):
     """

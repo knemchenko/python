@@ -117,5 +117,23 @@ async def main():
     print("\n--- Daily Forecast Update Finished ---")
 
 if __name__ == "__main__":
-    # Run the main async function
-    asyncio.run(main())
+    # This more complex way of running the event loop is to avoid
+    # a `RuntimeError: Event loop is closed` on Windows when the script exits.
+    # `asyncio.run()` is usually sufficient for non-Windows environments.
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_until_complete(main())
+    finally:
+        # Give pending tasks (like closing network connections) a moment to finish
+        tasks = asyncio.all_tasks(loop=loop)
+        for task in tasks:
+            task.cancel()
+
+        async def gather_cancelled():
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+        loop.run_until_complete(gather_cancelled())
+        loop.close()

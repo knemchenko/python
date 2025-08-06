@@ -65,10 +65,11 @@ def get_equity_curve():
         spy_equity = (1 + spy_returns).cumprod() * initial_capital
         spy_equity.name = "spy_equity"
 
-        combined = pd.concat([equity_curve, spy_equity], axis=1).fillna(method='ffill').reset_index()
-        combined.rename(columns={'timestamp': 'date'}, inplace=True)
+        combined = pd.concat([equity_curve, spy_equity], axis=1).fillna(method='ffill')
+        combined.index.name = 'date'
+        combined = combined.reset_index()
     else:
-        combined = equity_curve.reset_index()
+        combined = equity_curve.to_frame().reset_index()
         combined.rename(columns={'timestamp': 'date'}, inplace=True)
         combined['spy_equity'] = np.nan
 

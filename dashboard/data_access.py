@@ -60,18 +60,17 @@ def get_equity_curve():
     end_date = equity_curve.index.max()
     spy_data = get_spy_data(start_date, end_date)
 
+    # Combine strategy equity with SPY benchmark
+    combined = pd.DataFrame(equity_curve)
     if not spy_data.empty:
         spy_returns = spy_data['Close'].pct_change()
         spy_equity = (1 + spy_returns).cumprod() * initial_capital
-        spy_equity.name = "spy_equity"
-
-        combined = pd.concat([equity_curve, spy_equity], axis=1).fillna(method='ffill')
-        combined.index.name = 'date'
-        combined = combined.reset_index()
+        combined['spy_equity'] = spy_equity
     else:
-        combined = equity_curve.to_frame().reset_index()
-        combined.rename(columns={'timestamp': 'date'}, inplace=True)
-        combined['spy_equity'] = np.nan
+        combined['spy_equity'] = np.nan # Ensure column exists even if download fails
+
+    combined = combined.fillna(method='ffill').reset_index()
+    combined.rename(columns={'timestamp': 'date'}, inplace=True)
 
     return combined
 

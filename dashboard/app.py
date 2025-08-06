@@ -1,12 +1,13 @@
 import os
-from flask import Flask, render_template, jsonify, request
 import pandas as pd
+from flask import Flask, render_template, jsonify, request
 
 from dashboard.config import Config
 from dashboard.data_access import get_latest_metrics, get_equity_curve, get_todays_signals, get_sharpe_heatmap_data
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
 
 # --- Routes ---
 
@@ -73,8 +74,8 @@ def api_system_status():
     retrain_flag_path = os.path.join(Config.DATA_DIR, "RETRAIN_REQUIRED")
     status = {
         'retrain_required': os.path.exists(retrain_flag_path),
-        'cache_size': 'N/A',
-        'last_retrain_date': 'N/A'
+        'cache_size': 'N/A',  # This would require a function to calculate directory size
+        'last_retrain_date': 'N/A' # This would require storing metadata after training
     }
     return render_template('partials/system_status.html', status=status)
 
@@ -87,7 +88,7 @@ def api_force_retrain():
 
 @app.route('/api/clean_cache', methods=['POST'])
 def api_clean_cache():
-    # Placeholder logic
+    # In a real app, you would have a function here to delete .csv, .pkl, .parquet files
     return '<div class="alert alert-info" role="alert">Cache cleaning not implemented yet.</div>'
 
 @app.route('/api/sharpe_heatmap')

@@ -1,0 +1,16 @@
+# Core Application Dependencies
+yfinance
+pandas
+scikit-learn
+statsmodels
+xgboost
+matplotlib
+python-telegram-bot
+arch
+numpy
+scipy
+joblib
+pmdarima
+torch --index-url https://download.pytorch.org/whl/cpu
+darts
+python-decouple # For managing secrets

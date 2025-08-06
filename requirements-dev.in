@@ -1,0 +1,27 @@
+# Development and Testing Dependencies
+-r requirements.in
+
+# For compiling dependencies
+pip-tools
+
+# For linting and formatting
+ruff
+
+# For static type checking
+mypy
+# No stubs available for python-decouple, will use # type: ignore
+pandas-stubs
+# No stubs available for joblib, will use # type: ignore
+types-matplotlib
+
+# For testing
+pytest
+pytest-cov
+pytest-json-report
+
+# For finding dead code
+vulture
+
+# For security scanning
+# gitleaks is a binary and should be installed separately
+# e.g., via a package manager or in CI via a GitHub Action

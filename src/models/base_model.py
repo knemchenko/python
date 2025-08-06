@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-import pandas as pd
+import pandas as pd  # type: ignore
+from typing import Any
+
 
 class BaseModel(ABC):
     """
@@ -8,14 +10,15 @@ class BaseModel(ABC):
     """
 
     @abstractmethod
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """
         Initializes the model. Hyperparameters can be passed as keyword arguments.
         """
-        self.model = None
+        self.model: Any = None
+        self.train_series: pd.Series | None = None
 
     @abstractmethod
-    def fit(self, data: pd.Series):
+    def fit(self, data: pd.Series) -> None:
         """
         Fits the model to the provided time series data.
 
@@ -37,5 +40,5 @@ class BaseModel(ABC):
         """
         pass
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.__class__.__name__

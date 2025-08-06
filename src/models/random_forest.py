@@ -1,15 +1,25 @@
-import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
+import pandas as pd  # type: ignore
+from sklearn.ensemble import RandomForestRegressor  # type: ignore
 from src.models.base_model import BaseModel
-import numpy as np
-from typing import Tuple
+import numpy as np  # type: ignore
+from typing import Tuple, Any, Optional
+from src import config
+
 
 class RandomForestModel(BaseModel):
     """
-    A wrapper for the scikit-learn RandomForestRegressor model, adapted for time series forecasting.
+    A wrapper for the scikit-learn RandomForestRegressor model, adapted for
+    time series forecasting.
     """
 
-    def __init__(self, n_estimators=100, max_depth=10, n_lags=5, **kwargs):
+    def __init__(
+        self,
+        n_estimators: int = 100,
+        max_depth: int = 10,
+        n_lags: int = 5,
+        random_state: Optional[int] = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Initializes the RandomForestModel.
 
@@ -17,17 +27,18 @@ class RandomForestModel(BaseModel):
             n_estimators (int): The number of trees in the forest.
             max_depth (int): The maximum depth of the tree.
             n_lags (int): The number of past values (lags) to use as features.
+            random_state (int, optional): Seed for the random number generator.
+                                         Defaults to config.RANDOM_SEED.
         """
         super().__init__()
         self.n_lags = n_lags
         self.model = RandomForestRegressor(
             n_estimators=n_estimators,
             max_depth=max_depth,
-            random_state=42,
+            random_state=random_state if random_state is not None else config.RANDOM_SEED,
             n_jobs=-1,
-            **kwargs
+            **kwargs,
         )
-        self.train_series = None
 
     def _create_features(self, data: pd.Series) -> Tuple[pd.DataFrame, pd.Series]:
         """
@@ -35,11 +46,11 @@ class RandomForestModel(BaseModel):
         """
         X, y = [], []
         for i in range(len(data) - self.n_lags):
-            X.append(data.iloc[i:i + self.n_lags].values)
+            X.append(data.iloc[i : i + self.n_lags].values)
             y.append(data.iloc[i + self.n_lags])
         return pd.DataFrame(X), pd.Series(y)
 
-    def fit(self, data: pd.Series):
+    def fit(self, data: pd.Series) -> None:
         """
         Fits the RandomForest model to the data.
 
@@ -65,12 +76,12 @@ class RandomForestModel(BaseModel):
             raise RuntimeError("The model has not been fitted yet. Call fit() first.")
 
         # Get the last n_lags from the training data to start the prediction
-        history = self.train_series.values[-self.n_lags:].tolist()
+        history = self.train_series.values[-self.n_lags :].tolist()
         predictions = []
 
         for _ in range(n_periods):
             # Prepare the input for the next prediction
-            input_vector = np.array(history[-self.n_lags:]).reshape(1, -1)
+            input_vector = np.array(history[-self.n_lags :]).reshape(1, -1)
 
             # Predict the next value
             next_pred = self.model.predict(input_vector)[0]
@@ -81,8 +92,10 @@ class RandomForestModel(BaseModel):
 
         # Create a future date index for the forecast
         last_date = self.train_series.index[-1]
-        future_index = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=n_periods, freq='B')
+        future_index = pd.date_range(
+            start=last_date + pd.Timedelta(days=1), periods=n_periods, freq="B"
+        )
 
-        forecast_series = pd.Series(predictions, index=future_index, name='forecast')
+        forecast_series = pd.Series(predictions, index=future_index, name="forecast")
 
         return forecast_series

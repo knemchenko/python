@@ -1,7 +1,8 @@
-import pandas as pd
-from arch import arch_model
+import pandas as pd  # type: ignore
+from arch import arch_model  # type: ignore
 from src.models.base_model import BaseModel
-from arch.__future__ import reindexing
+from typing import Any
+
 
 class GarchModel(BaseModel):
     """
@@ -10,7 +11,7 @@ class GarchModel(BaseModel):
     The forecast is based on the conditional mean.
     """
 
-    def __init__(self, p=1, q=1, **kwargs):
+    def __init__(self, p: int = 1, q: int = 1, **kwargs: Any) -> None:
         """
         Initializes the GarchModel.
 
@@ -22,24 +23,32 @@ class GarchModel(BaseModel):
         self.p = p
         self.q = q
         self.kwargs = kwargs
-        self.train_series = None
-        self.fitted_model = None
+        self.returns: pd.Series | None = None
+        self.fitted_model: Any = None
 
-    def fit(self, data: pd.Series):
+    def fit(self, data: pd.Series) -> None:
         """
         Fits the GARCH model to the data. We model the log returns.
 
         Args:
             data (pd.Series): Time series data of prices to train on.
         """
-        print(f"Fitting GarchModel...")
+        print("Fitting GarchModel...")
         # GARCH models are best applied to returns, not prices
         self.returns = 100 * data.pct_change().dropna()
-        self.train_series = data # Keep original prices for forecasting
+        self.train_series = data  # Keep original prices for forecasting
 
         # Define an ARMA(1,1)-GARCH(1,1) model. This is a common choice.
-        self.model = arch_model(self.returns, vol='Garch', p=self.p, q=self.q, mean='ARX', lags=1, dist='Normal')
-        self.fitted_model = self.model.fit(disp='off')
+        self.model = arch_model(
+            self.returns,
+            vol="Garch",
+            p=self.p,
+            q=self.q,
+            mean="ARX",
+            lags=1,
+            dist="Normal",
+        )
+        self.fitted_model = self.model.fit(disp="off")
         # print(self.fitted_model.summary()) # Silenced for cleaner logs
 
     def predict(self, n_periods: int) -> pd.Series:
@@ -54,7 +63,7 @@ class GarchModel(BaseModel):
         Returns:
             pd.Series: A series of forecasted price values with a DatetimeIndex.
         """
-        if self.fitted_model is None:
+        if self.fitted_model is None or self.train_series is None:
             raise RuntimeError("The model has not been fitted yet. Call fit() first.")
 
         # Forecast the conditional mean (returns)
@@ -68,12 +77,14 @@ class GarchModel(BaseModel):
             next_price = price_forecast[-1] * (1 + ret / 100)
             price_forecast.append(next_price)
 
-        price_forecast = price_forecast[1:] # Remove the starting price
+        price_forecast = price_forecast[1:]  # Remove the starting price
 
         # Create a future date index for the forecast
         last_date = self.train_series.index[-1]
-        future_index = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=n_periods, freq='B')
+        future_index = pd.date_range(
+            start=last_date + pd.Timedelta(days=1), periods=n_periods, freq="B"
+        )
 
-        forecast_series = pd.Series(price_forecast, index=future_index, name='forecast')
+        forecast_series = pd.Series(price_forecast, index=future_index, name="forecast")
 
         return forecast_series

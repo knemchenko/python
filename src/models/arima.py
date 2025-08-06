@@ -2,6 +2,7 @@ import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
 from src.models.base_model import BaseModel
 
+
 class ArimaModel(BaseModel):
     """
     A wrapper for the statsmodels ARIMA model.
@@ -26,7 +27,7 @@ class ArimaModel(BaseModel):
         Args:
             data (pd.Series): Time series data to train on.
         """
-        # print(f"Fitting ArimaModel with order {self.order}...") # Silenced for cleaner logs
+        # print(f"Fitting ArimaModel with order {self.order}...") # Silenced
         self.train_series = data
         # The 'disp' parameter is removed in newer statsmodels.
         # We are silencing the summary print for cleaner logs.
@@ -50,8 +51,12 @@ class ArimaModel(BaseModel):
 
         # Create a proper DatetimeIndex to avoid issues
         last_date = self.train_series.index[-1]
-        future_index = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=n_periods, freq='B')
+        future_index = pd.date_range(
+            start=last_date + pd.Timedelta(days=1), periods=n_periods, freq="B"
+        )
 
-        forecast_series = pd.Series(forecast_values, index=future_index, name='forecast')
+        forecast_series = pd.Series(
+            forecast_values, index=future_index, name="forecast"
+        )
 
         return forecast_series

@@ -1,15 +1,25 @@
-import pandas as pd
-import xgboost as xgb
+import pandas as pd  # type: ignore
+import xgboost as xgb  # type: ignore
 from src.models.base_model import BaseModel
-import numpy as np
-from typing import Tuple
+import numpy as np  # type: ignore
+from typing import Tuple, Any, Optional
+from src import config
+
 
 class XGBoostModel(BaseModel):
     """
     A wrapper for the XGBoost Regressor model, adapted for time series forecasting.
     """
 
-    def __init__(self, n_estimators=100, max_depth=5, learning_rate=0.1, n_lags=5, **kwargs):
+    def __init__(
+        self,
+        n_estimators: int = 100,
+        max_depth: int = 5,
+        learning_rate: float = 0.1,
+        n_lags: int = 5,
+        random_state: Optional[int] = None,
+        **kwargs: Any,
+    ) -> None:
         """
         Initializes the XGBoostModel.
 
@@ -18,6 +28,8 @@ class XGBoostModel(BaseModel):
             max_depth (int): The maximum depth of a tree.
             learning_rate (float): The step size shrinkage.
             n_lags (int): The number of past values (lags) to use as features.
+            random_state (int, optional): Seed for the random number generator.
+                                         Defaults to config.RANDOM_SEED.
         """
         super().__init__()
         self.n_lags = n_lags
@@ -25,23 +37,22 @@ class XGBoostModel(BaseModel):
             n_estimators=n_estimators,
             max_depth=max_depth,
             learning_rate=learning_rate,
-            random_state=42,
+            random_state=random_state if random_state is not None else config.RANDOM_SEED,
             n_jobs=-1,
-            **kwargs
+            **kwargs,
         )
-        self.train_series = None
 
-    def _create_features(self, data: pd.S-er-ies) -> Tuple[pd.DataFrame, pd.Series]:
+    def _create_features(self, data: pd.Series) -> Tuple[pd.DataFrame, pd.Series]:
         """
         Creates a feature matrix (X) and target vector (y) from time series data.
         """
         X, y = [], []
         for i in range(len(data) - self.n_lags):
-            X.append(data.iloc[i:i + self.n_lags].values)
+            X.append(data.iloc[i : i + self.n_lags].values)
             y.append(data.iloc[i + self.n_lags])
         return pd.DataFrame(X), pd.Series(y)
 
-    def fit(self, data: pd.Series):
+    def fit(self, data: pd.Series) -> None:
         """
         Fits the XGBoost model to the data.
 
@@ -66,11 +77,11 @@ class XGBoostModel(BaseModel):
         if self.train_series is None:
             raise RuntimeError("The model has not been fitted yet. Call fit() first.")
 
-        history = self.train_series.values[-self.n_lags:].tolist()
+        history = self.train_series.values[-self.n_lags :].tolist()
         predictions = []
 
         for _ in range(n_periods):
-            input_vector = np.array(history[-self.n_lags:]).reshape(1, -1)
+            input_vector = np.array(history[-self.n_lags :]).reshape(1, -1)
 
             next_pred = self.model.predict(input_vector)[0]
             predictions.append(next_pred)
@@ -78,8 +89,10 @@ class XGBoostModel(BaseModel):
             history.append(next_pred)
 
         last_date = self.train_series.index[-1]
-        future_index = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=n_periods, freq='B')
+        future_index = pd.date_range(
+            start=last_date + pd.Timedelta(days=1), periods=n_periods, freq="B"
+        )
 
-        forecast_series = pd.Series(predictions, index=future_index, name='forecast')
+        forecast_series = pd.Series(predictions, index=future_index, name="forecast")
 
         return forecast_series

@@ -1,13 +1,21 @@
-import pandas as pd
-from statsmodels.tsa.api import ExponentialSmoothing
+import pandas as pd  # type: ignore
+from statsmodels.tsa.api import ExponentialSmoothing  # type: ignore
 from src.models.base_model import BaseModel
+from typing import Any
+
 
 class HoltWintersModel(BaseModel):
     """
     A wrapper for the statsmodels Holt-Winters Exponential Smoothing model.
     """
 
-    def __init__(self, trend='add', seasonal='add', seasonal_periods=5, **kwargs):
+    def __init__(
+        self,
+        trend: str = "add",
+        seasonal: str = "add",
+        seasonal_periods: int = 5,
+        **kwargs: Any,
+    ) -> None:
         """
         Initializes the HoltWintersModel.
 
@@ -21,23 +29,22 @@ class HoltWintersModel(BaseModel):
         self.seasonal = seasonal
         self.seasonal_periods = seasonal_periods
         self.kwargs = kwargs
-        self.train_series = None
 
-    def fit(self, data: pd.Series):
+    def fit(self, data: pd.Series) -> None:
         """
         Fits the Holt-Winters model to the data.
 
         Args:
             data (pd.Series): Time series data to train on.
         """
-        print(f"Fitting HoltWintersModel...")
+        print("Fitting HoltWintersModel...")
         self.train_series = data
         self.model = ExponentialSmoothing(
             data,
             trend=self.trend,
             seasonal=self.seasonal,
             seasonal_periods=self.seasonal_periods,
-            **self.kwargs
+            **self.kwargs,
         ).fit()
         # print(self.model.summary()) # Silenced for cleaner logs
 
@@ -51,7 +58,7 @@ class HoltWintersModel(BaseModel):
         Returns:
             pd.Series: A series of forecasted values with a DatetimeIndex.
         """
-        if self.model is None:
+        if self.model is None or self.train_series is None:
             raise RuntimeError("The model has not been fitted yet. Call fit() first.")
 
         # The forecast method can return integer indices if the frequency is not found
@@ -59,8 +66,12 @@ class HoltWintersModel(BaseModel):
 
         # Create a proper DatetimeIndex to avoid issues
         last_date = self.train_series.index[-1]
-        future_index = pd.date_range(start=last_date + pd.Timedelta(days=1), periods=n_periods, freq='B')
+        future_index = pd.date_range(
+            start=last_date + pd.Timedelta(days=1), periods=n_periods, freq="B"
+        )
 
-        forecast_series = pd.Series(forecast_values, index=future_index, name='forecast')
+        forecast_series = pd.Series(
+            forecast_values, index=future_index, name="forecast"
+        )
 
         return forecast_series

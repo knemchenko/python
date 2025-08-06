@@ -61,7 +61,7 @@ def get_equity_curve():
     spy_data = get_spy_data(start_date, end_date)
 
     if not spy_data.empty:
-        spy_returns = spy_data['Adj Close'].pct_change()
+        spy_returns = spy_data['Close'].pct_change()
         spy_equity = (1 + spy_returns).cumprod() * initial_capital
         spy_equity.name = "spy_equity"
 
